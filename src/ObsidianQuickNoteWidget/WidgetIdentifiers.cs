@@ -10,4 +10,5 @@ internal static class WidgetIdentifiers
     /// <summary>Widget definition IDs — must match the <c>Definition</c> blocks in <c>Package.appxmanifest</c>.</summary>
     public const string QuickNoteWidgetId = "ObsidianQuickNote";
     public const string RecentNotesWidgetId = "ObsidianRecentNotes";
+    public const string PluginRunnerDefinitionId = "PluginRunner";
 }
