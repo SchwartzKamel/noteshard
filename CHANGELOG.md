@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0.7] - 2026-04-19
+
+### Fixed
+- "Open vault" button now launches Obsidian if it's closed (previously a no-op because the CLI requires Obsidian to already be running).
+- "Open recent note" now also launches Obsidian when closed, via the registered `obsidian://` URI scheme.
+
+### Added
+- `IObsidianLauncher` service + `ObsidianLauncher` implementation; vault auto-discovery from `%APPDATA%/obsidian/obsidian.json` with `OBSIDIAN_VAULT` env override.
+
 ## [1.0.0.6] - 2026-04-19
 
 ### Fixed
