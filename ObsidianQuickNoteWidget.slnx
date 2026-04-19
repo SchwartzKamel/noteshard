@@ -8,5 +8,8 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ObsidianQuickNoteWidget.Core.Tests/ObsidianQuickNoteWidget.Core.Tests.csproj" />
+    <Project Path="tests/ObsidianQuickNoteWidget.Tests/ObsidianQuickNoteWidget.Tests.csproj">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
 </Solution>
