@@ -4,9 +4,9 @@
 
 Up: [`../README.md`](../README.md) (docs index)
 
-Canonical source of truth:
-[`../../audit-reports/v3/security-auditor.md`](../../audit-reports/v3/security-auditor.md).
-This page summarizes; defer to that report when they disagree.
+Canonical source of truth: [`../../SECURITY.md`](../../SECURITY.md) and the
+[`CHANGELOG.md`](../../CHANGELOG.md) "Security" sections per release.
+This page summarizes the threat model and findings history.
 
 ## F-series status at HEAD (1.0.0.7)
 
@@ -101,8 +101,8 @@ The v3 threat-model walk covers 15 distinct attack vectors (`../…`, UNC-style,
 `\\?\…`, homoglyph slashes, NTFS ADS, null byte, CRLF, long path, shell
 metacharacters, `path=` key smuggling, …) and concludes the only unsafe one
 is the leading-dot case (F-04). See
-[`../../audit-reports/v3/security-auditor.md`](../../audit-reports/v3/security-auditor.md)
-§"`folderNew` threat-model — explicit non-findings".
+[`../../SECURITY.md`](../../SECURITY.md) and [`../../CHANGELOG.md`](../../CHANGELOG.md)
+for the full resolved-vs-open ledger.
 
 ## URI launcher threat model (v7)
 
@@ -153,7 +153,7 @@ source — the whole folder is git-ignored.
 - [`development.md`](./development.md) — dev-cert setup.
 - [`release.md`](./release.md) — signing pipeline + open blockers.
 - [`cli-surface.md`](./cli-surface.md) — CLI invocation discipline (F-17).
-- [`../../audit-reports/v3/security-auditor.md`](../../audit-reports/v3/security-auditor.md) — authoritative v3 audit.
-- [`../../audit-reports/v3/release-engineer.md`](../../audit-reports/v3/release-engineer.md) — version-hygiene + public-publish blockers.
+- [`../../SECURITY.md`](../../SECURITY.md) — reporting policy + scope.
+- [`../../CHANGELOG.md`](../../CHANGELOG.md) — per-release security notes.
 
 Up: [`../README.md`](../README.md)

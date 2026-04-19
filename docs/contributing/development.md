@@ -80,7 +80,7 @@ SHA256/RSA-2048) and writes three files under
   a user-only ACL (the current user + SYSTEM + Administrators, inheritance
   disabled). The password is never echoed to the console, committed to source,
   or accepted as a CLI argument. This is finding **F-01** (CWE-798) closed —
-  see [`../../audit-reports/v3/security-auditor.md`](../../audit-reports/v3/security-auditor.md).
+  see [`../../CHANGELOG.md`](../../CHANGELOG.md) and [`./security.md`](./security.md).
 
 The `dev-cert\` folder and `*.pfx` / `*.cer` are git-ignored. Rotate with
 `.\tools\New-DevCert.ps1 -Force`.

@@ -83,9 +83,7 @@ wraps the Core-only path; there is no make target for the widget tests today.
 
 ## Coverage blind spots
 
-Known uncovered surfaces are documented in
-[`../../audit-reports/v3/test-author.md`](../../audit-reports/v3/test-author.md).
-The short list at HEAD:
+Known uncovered surfaces — the short list at HEAD:
 
 - **`NoteCreationService.BuildBody`** seeded-vs-user composition (separator
   `\n\n`, `TrimEnd()`, template seeding arm) — v2 Top-1, still partial.
@@ -111,6 +109,5 @@ surface.
 - [`adaptive-cards.md`](./adaptive-cards.md) — template ↔ data-builder
   round-trip assertions live in `CardTemplatesTests` and
   `CardDataBuilderTests`.
-- [`../../audit-reports/v3/test-author.md`](../../audit-reports/v3/test-author.md) — full v3 coverage audit.
 
 Up: [`../README.md`](../README.md)

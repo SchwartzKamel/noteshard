@@ -18,8 +18,7 @@ Four places carry a version string and must agree on the first three segments:
 
 The Package manifest carries a full 4-part `Major.Minor.Build.Revision`; the
 winget manifests mirror the same 4-part string today. A `make verify-versions`
-gate is on the backlog (see `audit-reports/v3/release-engineer.md` item #7)
-— until it lands, use ripgrep:
+gate is on the backlog — until it lands, use ripgrep:
 
 ```powershell
 rg -n 'PackageVersion|Identity.*Version' winget src/ObsidianQuickNoteWidget/Package.appxmanifest
@@ -139,7 +138,7 @@ trailer when produced by an agent pipeline.
 
 ## Open blockers for public publish
 
-Tracked in [`../../audit-reports/v3/release-engineer.md`](../../audit-reports/v3/release-engineer.md).
+Tracked on the public-release backlog.
 Status at HEAD:
 
 1. **No production code-signing cert.** Manifest still
