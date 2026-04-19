@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0.5] - 2026-04-19
+
+### Fixed
+- Recent Notes widget now populates from the vault via `obsidian recents` CLI (previously always empty because the per-widget state was never written to by that widget).
+
+### Added
+- `ListRecentsAsync` on IObsidianCli; 30s TTL refresh cache on RecentNotes widgets; parent-folder subtitle on each recent entry.
+
 ## [1.0.0.4] - 2026-04-19
 
 ### Added
