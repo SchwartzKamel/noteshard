@@ -6,6 +6,7 @@ public sealed class WidgetState
     public string WidgetId { get; set; } = string.Empty;
     public string Size { get; set; } = "medium";
     public string LastFolder { get; set; } = string.Empty;
+    public string LastFolderNew { get; set; } = string.Empty;
     public bool OpenAfterCreate { get; set; }
     public bool AutoDatePrefix { get; set; }
     public bool AppendToDaily { get; set; }

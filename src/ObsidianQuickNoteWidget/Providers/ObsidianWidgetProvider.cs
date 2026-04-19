@@ -193,6 +193,28 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
 
     private async Task HandleVerbAsync(WidgetSession session, string verb, string? data)
     {
+        // Persist the user's in-progress "new folder" text so that any
+        // re-render (status swap, toggleAdvanced, periodic push) echoes it
+        // back into the Input.Text via ${$root.inputs.folderNew} instead of
+        // wiping it. CreateNoteAsync handles its own persistence + clear.
+        if (verb != "createNote")
+        {
+            var preInputs = ParseInputs(data);
+            if (preInputs.TryGetValue("folderNew", out var typed))
+            {
+                await _gate.WithLockAsync(session.Id, () =>
+                {
+                    if (_active.ContainsKey(session.Id))
+                    {
+                        var s = _store.Get(session.Id);
+                        s.LastFolderNew = typed ?? string.Empty;
+                        _store.Save(s);
+                    }
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+            }
+        }
+
         switch (verb)
         {
             case "createNote":
@@ -249,9 +271,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
 
             var title = inputs.GetValueOrDefault("title") ?? string.Empty;
             var folderNew = inputs.GetValueOrDefault("folderNew")?.Trim();
-            var folder = !string.IsNullOrEmpty(folderNew)
-                ? folderNew
-                : inputs.GetValueOrDefault("folder") ?? state.LastFolder;
+            var folder = ResolveFolder(folderNew, inputs.GetValueOrDefault("folder"), state.LastFolder);
             var body = inputs.GetValueOrDefault("body") ?? string.Empty;
             var tagsCsv = inputs.GetValueOrDefault("tagsCsv") ?? state.TagsCsv;
             var template = inputs.GetValueOrDefault("template") ?? state.Template;
@@ -279,7 +299,6 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
 
             var result = await _notes.CreateAsync(req).ConfigureAwait(false);
 
-            state.LastFolder = folder ?? string.Empty;
             state.AutoDatePrefix = autoDate;
             state.OpenAfterCreate = openAfter;
             state.AppendToDaily = appendDaily;
@@ -288,21 +307,42 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
 
             if (result.Status == NoteCreationStatus.Created && !string.IsNullOrEmpty(result.VaultRelativePath))
             {
+                // N15: Only persist LastFolder on successful create so a validation
+                // rejection or CLI error cannot poison the default on next render.
+                state.LastFolder = folder ?? string.Empty;
+
                 RememberRecent(state.RecentNotes, result.VaultRelativePath!, max: 16);
                 if (!string.IsNullOrEmpty(folder)) RememberRecent(state.RecentFolders, folder!, max: 8);
+
+                // N14: Optimistically add a freshly-typed folder to CachedFolders so
+                // BuildFolderChoices surfaces it on the very next render; the async
+                // CLI refresh below only lands on a subsequent render cycle.
+                if (!string.IsNullOrEmpty(folderNew))
+                {
+                    var check = FolderPathValidator.Validate(folderNew);
+                    if (check.IsValid && !string.IsNullOrEmpty(check.NormalizedPath) &&
+                        !state.CachedFolders.Contains(check.NormalizedPath!, StringComparer.OrdinalIgnoreCase))
+                    {
+                        state.CachedFolders.Add(check.NormalizedPath!);
+                    }
+                }
+
                 state.LastStatus = result.Message;
                 state.LastError = null;
                 state.LastCreatedPath = result.VaultRelativePath;
+                state.LastFolderNew = string.Empty;
             }
             else if (result.Status == NoteCreationStatus.AppendedToDaily)
             {
                 state.LastStatus = result.Message;
                 state.LastError = null;
+                state.LastFolderNew = string.Empty;
             }
             else
             {
                 state.LastStatus = null;
                 state.LastError = result.Message;
+                state.LastFolderNew = folderNew ?? string.Empty;
             }
 
             _store.Save(state);
@@ -454,6 +494,19 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
 
     private static bool ParseBool(string? s, bool fallback) =>
         s is null ? fallback : string.Equals(s, "true", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Resolves the folder for a new note using the documented precedence:
+    /// trimmed <paramref name="folderNew"/> (if non-empty) wins, else the
+    /// picker-selected <paramref name="picker"/>, else <paramref name="lastFolder"/>.
+    /// </summary>
+    internal static string? ResolveFolder(string? folderNew, string? picker, string? lastFolder)
+    {
+        var trimmed = folderNew?.Trim();
+        return !string.IsNullOrEmpty(trimmed)
+            ? trimmed
+            : picker ?? lastFolder;
+    }
 
     private static string? TryReadClipboardText()
     {

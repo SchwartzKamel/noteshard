@@ -191,6 +191,27 @@ public class CardDataBuilderTests
     }
 
     [Fact]
+    public void QuickNoteData_EchoesFolderNew_FromState()
+    {
+        var s = new WidgetState { WidgetId = "w", LastFolderNew = "Projects/NewIdea" };
+        var json = CardDataBuilder.BuildQuickNoteData(s, showAdvanced: true);
+        using var doc = JsonDocument.Parse(json);
+        var inputs = doc.RootElement.GetProperty("inputs");
+        Assert.Equal("Projects/NewIdea", inputs.GetProperty("folderNew").GetString());
+    }
+
+    [Fact]
+    public void QuickNoteData_FolderNew_DefaultsToEmpty()
+    {
+        var s = new WidgetState { WidgetId = "w" };
+        var json = CardDataBuilder.BuildQuickNoteData(s, showAdvanced: false);
+        using var doc = JsonDocument.Parse(json);
+        var inputs = doc.RootElement.GetProperty("inputs");
+        Assert.True(inputs.TryGetProperty("folderNew", out var fn));
+        Assert.Equal(string.Empty, fn.GetString());
+    }
+
+    [Fact]
     public void CliMissingData_IncludesDetail()
     {
         var json = CardDataBuilder.BuildCliMissingData("not on PATH");

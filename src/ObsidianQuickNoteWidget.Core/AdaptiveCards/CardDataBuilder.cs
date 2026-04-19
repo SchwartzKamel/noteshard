@@ -23,6 +23,7 @@ public static class CardDataBuilder
             {
                 ["title"] = string.Empty,
                 ["folder"] = s.LastFolder ?? string.Empty,
+                ["folderNew"] = s.LastFolderNew ?? string.Empty,
                 ["body"] = string.Empty,
                 ["tagsCsv"] = s.TagsCsv ?? string.Empty,
                 ["template"] = s.Template ?? "Blank",
