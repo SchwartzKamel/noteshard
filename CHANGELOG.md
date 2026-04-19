@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0.3] - 2026-04-19
+
+### Fixed
+- `folderNew` input value now persists across widget re-renders (was wiped on timer push / status swap) — N13
+- Typing a new folder now adds it to the folder dropdown cache on success (was silently dropped) — N14
+- `LastFolder` only persisted on successful create (was poisoned on CLI errors / validation rejections) — N15
+
+### Security
+- `FolderPathValidator` now rejects C0 control characters in folder segments — F-16
+
 ## [1.0.0.2] - 2026-04-19
 
 ### Changed
