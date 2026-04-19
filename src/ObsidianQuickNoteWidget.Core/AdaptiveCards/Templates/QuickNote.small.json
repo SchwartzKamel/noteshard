@@ -1,0 +1,33 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Input.Text",
+      "id": "title",
+      "placeholder": "Quick note title…",
+      "isRequired": true,
+      "errorMessage": "Title required",
+      "value": "${$root.inputs.title}"
+    },
+    {
+      "type": "TextBlock",
+      "text": "${$root.statusMessage}",
+      "wrap": true,
+      "color": "${$root.statusColor}",
+      "isVisible": "${$root.hasStatus}",
+      "spacing": "Small",
+      "size": "Small"
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "title": "Create",
+      "verb": "createNote",
+      "style": "positive",
+      "data": { "widgetId": "${widgetId}", "verb": "createNote" }
+    }
+  ]
+}

@@ -1,0 +1,484 @@
+using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using Microsoft.Windows.Widgets.Providers;
+using ObsidianQuickNoteWidget.Core.AdaptiveCards;
+using ObsidianQuickNoteWidget.Core.Cli;
+using ObsidianQuickNoteWidget.Core.Concurrency;
+using ObsidianQuickNoteWidget.Core.Logging;
+using ObsidianQuickNoteWidget.Core.Notes;
+using ObsidianQuickNoteWidget.Core.State;
+
+namespace ObsidianQuickNoteWidget.Providers;
+
+/// <summary>
+/// COM-exposed widget provider. One instance serves all widgets pinned from the
+/// Widget Board; per-widget data is kept in <see cref="JsonStateStore"/>.
+/// </summary>
+[ComVisible(true)]
+[Guid(WidgetIdentifiers.ProviderClsid)]
+public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetProvider2
+{
+    private readonly ILog _log;
+    private readonly IStateStore _store;
+    private readonly IObsidianCli _cli;
+    private readonly NoteCreationService _notes;
+    private readonly ConcurrentDictionary<string, WidgetSession> _active = new();
+
+    // Per-widget async mutex. Every Get → mutate → Save sequence on the store
+    // runs under the gate for that widget id, which serializes concurrent COM
+    // callbacks, timer ticks, and fire-and-forget refresh tasks within this
+    // process. Cross-process coordination with the tray is still last-write-wins
+    // (see JsonStateStore xmldoc).
+    private readonly AsyncKeyedLock<string> _gate =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Lifetime: tied to COM host process — no explicit dispose. The Widget Host
+    // terminates this process when all widgets go away, so the Timer is reclaimed
+    // with the process.
+    private readonly Timer _folderRefreshTimer;
+    private static readonly TimeSpan FolderRefreshInterval = TimeSpan.FromMinutes(2);
+
+    public ObsidianWidgetProvider()
+        : this(new FileLog(), new JsonStateStore(), null) { }
+
+    internal ObsidianWidgetProvider(ILog log, IStateStore store, IObsidianCli? cli)
+    {
+        _log = log;
+        _store = store;
+        _cli = cli ?? new ObsidianCli(log);
+        _notes = new NoteCreationService(_cli, log);
+        _folderRefreshTimer = new Timer(
+            _ => FireAndLog(RefreshAllActiveAsync, "timer", "refreshAll"),
+            state: null,
+            dueTime: FolderRefreshInterval,
+            period: FolderRefreshInterval);
+    }
+
+    // ---- IWidgetProvider ----
+
+    public void CreateWidget(WidgetContext widgetContext)
+    {
+        var id = widgetContext.Id;
+        var definitionId = widgetContext.DefinitionId;
+        var sizeLabel = widgetContext.Size.ToString().ToLowerInvariant();
+        _log.Info($"CreateWidget id={id} kind={definitionId} size={widgetContext.Size}");
+
+        FireAndLog(() => _gate.WithLockAsync(id, async () =>
+        {
+            var state = _store.Get(id);
+            state.WidgetId = id;
+            state.Size = sizeLabel;
+            _store.Save(state);
+            _active[id] = new WidgetSession(id, definitionId, state.Size);
+            await Task.CompletedTask.ConfigureAwait(false);
+        }), id, "createWidget", pushUpdateOnCompletion: true);
+
+        FireAndLog(() => RefreshFolderCacheAsync(id), id, "refreshFolderCache");
+    }
+
+    public void DeleteWidget(string widgetId, string customState)
+    {
+        _log.Info($"DeleteWidget id={widgetId}");
+        // Acquire the gate before mutating _active + store so any in-flight
+        // refresh/action for this id either finished first or will observe the
+        // removal and skip its save.
+        FireAndLog(() => _gate.WithLockAsync(widgetId, async () =>
+        {
+            _active.TryRemove(widgetId, out _);
+            _store.Delete(widgetId);
+            await Task.CompletedTask.ConfigureAwait(false);
+        }), widgetId, "deleteWidget");
+    }
+
+    public void OnActionInvoked(WidgetActionInvokedArgs actionInvokedArgs)
+    {
+        var id = actionInvokedArgs.WidgetContext.Id;
+        var verb = actionInvokedArgs.Verb ?? string.Empty;
+        var definitionId = actionInvokedArgs.WidgetContext.DefinitionId;
+        var data = actionInvokedArgs.Data;
+        _log.Info($"OnActionInvoked id={id} verb={verb}");
+
+        FireAndLog(async () =>
+        {
+            var session = _active.GetOrAdd(id, _ => new WidgetSession(id, definitionId, _store.Get(id).Size));
+            await HandleVerbAsync(session, verb, data).ConfigureAwait(false);
+        }, id, $"action:{verb}", pushUpdateOnCompletion: true);
+    }
+
+    public void OnWidgetContextChanged(WidgetContextChangedArgs contextChangedArgs)
+    {
+        var ctx = contextChangedArgs.WidgetContext;
+        var id = ctx.Id;
+        var newSize = ctx.Size.ToString().ToLowerInvariant();
+        _log.Info($"OnWidgetContextChanged id={id} newSize={ctx.Size}");
+
+        FireAndLog(() => _gate.WithLockAsync(id, async () =>
+        {
+            if (!_active.ContainsKey(id)) return;
+            var state = _store.Get(id);
+            state.Size = newSize;
+            _store.Save(state);
+            if (_active.TryGetValue(id, out var session)) session.Size = newSize;
+            await Task.CompletedTask.ConfigureAwait(false);
+        }), id, "contextChanged", pushUpdateOnCompletion: true);
+    }
+
+    public void Activate(WidgetContext widgetContext)
+    {
+        var id = widgetContext.Id;
+        var definitionId = widgetContext.DefinitionId;
+        _log.Info($"Activate id={id} size={widgetContext.Size}");
+
+        FireAndLog(() => _gate.WithLockAsync(id, async () =>
+        {
+            _active.TryAdd(id, new WidgetSession(id, definitionId, _store.Get(id).Size));
+            await Task.CompletedTask.ConfigureAwait(false);
+        }), id, "activate", pushUpdateOnCompletion: true);
+
+        FireAndLog(() => RefreshFolderCacheAsync(id), id, "refreshFolderCache");
+    }
+
+    public void Deactivate(string widgetId) { _log.Info($"Deactivate id={widgetId}"); _active.TryRemove(widgetId, out _); }
+
+    // ---- IWidgetProvider2 ----
+
+    public void OnCustomizationRequested(WidgetCustomizationRequestedArgs customizationRequestedArgs)
+    {
+        // v1 has no customization UI; we just acknowledge.
+        _log.Info($"OnCustomizationRequested id={customizationRequestedArgs.WidgetContext.Id}");
+    }
+
+    // ---- internal ----
+
+    /// <summary>
+    /// Awaits <paramref name="work"/> inside a try/catch, logs any failure, and
+    /// optionally writes the error to the widget's state + refreshes the card.
+    /// Returns a Task so tests can observe completion; the returned Task never
+    /// faults.
+    /// </summary>
+    internal Task FireAndLog(Func<Task> work, string widgetId, string context, bool pushUpdateOnCompletion = false)
+    {
+        return AsyncSafe.RunAsync(
+            work,
+            _log,
+            $"[{widgetId}] {context}",
+            onError: async ex =>
+            {
+                // Surface the failure to the user. Use the gate so we don't
+                // clobber a concurrent writer.
+                await _gate.WithLockAsync(widgetId, () =>
+                {
+                    if (_active.ContainsKey(widgetId))
+                    {
+                        var s = _store.Get(widgetId);
+                        s.LastStatus = null;
+                        s.LastError = ex.Message;
+                        _store.Save(s);
+                    }
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+                SafePushUpdate(widgetId);
+            }).ContinueWith(_ =>
+            {
+                if (pushUpdateOnCompletion) SafePushUpdate(widgetId);
+            }, TaskScheduler.Default);
+    }
+
+    private void SafePushUpdate(string widgetId)
+    {
+        try { PushUpdate(widgetId); }
+        catch (Exception ex) { _log.Warn($"SafePushUpdate({widgetId}): {ex.Message}"); }
+    }
+
+    private async Task HandleVerbAsync(WidgetSession session, string verb, string? data)
+    {
+        switch (verb)
+        {
+            case "createNote":
+                await CreateNoteAsync(session, data).ConfigureAwait(false);
+                break;
+            case "pasteClipboard":
+                session.PendingBodyPaste = TryReadClipboardText();
+                await _gate.WithLockAsync(session.Id, () =>
+                {
+                    if (_active.ContainsKey(session.Id))
+                    {
+                        var s = _store.Get(session.Id);
+                        s.LastStatus = session.PendingBodyPaste is null ? "Clipboard was empty" : "Clipboard pasted — review and Create";
+                        s.LastError = null;
+                        _store.Save(s);
+                    }
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+                break;
+            case "toggleAdvanced":
+                session.ShowAdvanced = !session.ShowAdvanced;
+                break;
+            case "recheckCli":
+                break; // next PushUpdate will re-evaluate CLI availability
+            case "openRecent":
+                await HandleOpenRecentAsync(session, data).ConfigureAwait(false);
+                break;
+            case "openVault":
+                if (_cli.IsAvailable)
+                {
+                    await AsyncSafe.RunAsync(
+                        () => _cli.OpenNoteAsync(string.Empty),
+                        _log,
+                        $"[{session.Id}] openVault").ConfigureAwait(false);
+                }
+                break;
+            default:
+                _log.Warn($"Unknown verb: {verb}");
+                break;
+        }
+    }
+
+    private async Task CreateNoteAsync(WidgetSession session, string? actionData)
+    {
+        var inputs = ParseInputs(actionData);
+
+        // The whole Get → CLI → mutate → Save round-trip runs under the per-id
+        // gate so timer ticks and other actions for the same widget cannot
+        // clobber the result.
+        await _gate.WithLockAsync(session.Id, async () =>
+        {
+            if (!_active.ContainsKey(session.Id)) return;
+            var state = _store.Get(session.Id);
+
+            var title = inputs.GetValueOrDefault("title") ?? string.Empty;
+            var folder = inputs.GetValueOrDefault("folder") ?? state.LastFolder;
+            var body = inputs.GetValueOrDefault("body") ?? string.Empty;
+            var tagsCsv = inputs.GetValueOrDefault("tagsCsv") ?? state.TagsCsv;
+            var template = inputs.GetValueOrDefault("template") ?? state.Template;
+            var autoDate = ParseBool(inputs.GetValueOrDefault("autoDatePrefix"), state.AutoDatePrefix);
+            var openAfter = ParseBool(inputs.GetValueOrDefault("openAfterCreate"), state.OpenAfterCreate);
+            var appendDaily = ParseBool(inputs.GetValueOrDefault("appendToDaily"), state.AppendToDaily);
+
+            if (session.PendingBodyPaste is not null)
+            {
+                body = string.IsNullOrEmpty(body)
+                    ? session.PendingBodyPaste
+                    : body + "\n\n" + session.PendingBodyPaste;
+                session.PendingBodyPaste = null;
+            }
+
+            var req = new NoteRequest(
+                Title: title,
+                Folder: folder,
+                Body: body,
+                TagsCsv: tagsCsv,
+                Template: Enum.TryParse<NoteTemplate>(template, ignoreCase: true, out var t) ? t : NoteTemplate.Blank,
+                AutoDatePrefix: autoDate,
+                OpenAfterCreate: openAfter,
+                AppendToDaily: appendDaily);
+
+            var result = await _notes.CreateAsync(req).ConfigureAwait(false);
+
+            state.LastFolder = folder ?? string.Empty;
+            state.AutoDatePrefix = autoDate;
+            state.OpenAfterCreate = openAfter;
+            state.AppendToDaily = appendDaily;
+            state.TagsCsv = tagsCsv ?? string.Empty;
+            state.Template = template ?? "Blank";
+
+            if (result.Status == NoteCreationStatus.Created && !string.IsNullOrEmpty(result.VaultRelativePath))
+            {
+                RememberRecent(state.RecentNotes, result.VaultRelativePath!, max: 16);
+                if (!string.IsNullOrEmpty(folder)) RememberRecent(state.RecentFolders, folder!, max: 8);
+                state.LastStatus = result.Message;
+                state.LastError = null;
+                state.LastCreatedPath = result.VaultRelativePath;
+            }
+            else if (result.Status == NoteCreationStatus.AppendedToDaily)
+            {
+                state.LastStatus = result.Message;
+                state.LastError = null;
+            }
+            else
+            {
+                state.LastStatus = null;
+                state.LastError = result.Message;
+            }
+
+            _store.Save(state);
+        }).ConfigureAwait(false);
+
+        // Auto-refresh folder cache after a successful note creation so that a
+        // newly created folder becomes selectable immediately. The check is
+        // best-effort: re-read state under the gate would block us, so trust
+        // the just-written state.
+        var latest = _store.Get(session.Id);
+        if (string.IsNullOrEmpty(latest.LastError))
+        {
+            _ = FireAndLog(() => RefreshFolderCacheAsync(session.Id), session.Id, "refreshFolderCache");
+        }
+    }
+
+    private async Task HandleOpenRecentAsync(WidgetSession session, string? data)
+    {
+        if (!_cli.IsAvailable) return;
+        try
+        {
+            using var doc = JsonDocument.Parse(data ?? "{}");
+            if (doc.RootElement.TryGetProperty("path", out var p))
+            {
+                var path = p.GetString();
+                if (!string.IsNullOrEmpty(path))
+                    await _cli.OpenNoteAsync(path!).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) { _log.Warn("openRecent parse failed: " + ex.Message); }
+    }
+
+    private async Task RefreshFolderCacheAsync(string widgetId)
+    {
+        if (!_cli.IsAvailable) return;
+        // CLI call happens outside the gate so refreshes for different widgets
+        // (and other actions for this widget) aren't blocked on it.
+        var folders = (await _cli.ListFoldersAsync().ConfigureAwait(false)).ToList();
+        var now = DateTimeOffset.Now;
+        await _gate.WithLockAsync(widgetId, () =>
+        {
+            if (!_active.ContainsKey(widgetId)) return Task.CompletedTask;
+            var state = _store.Get(widgetId);
+            state.CachedFolders = folders;
+            state.CachedFoldersAt = now;
+            _store.Save(state);
+            return Task.CompletedTask;
+        }).ConfigureAwait(false);
+        SafePushUpdate(widgetId);
+    }
+
+    /// <summary>
+    /// Periodic-timer callback: refreshes the folder cache for every currently
+    /// active widget so the dropdown picks up vault changes made in Obsidian
+    /// without the user having to deactivate/reactivate the widget.
+    /// </summary>
+    private async Task RefreshAllActiveAsync()
+    {
+        if (_active.IsEmpty || !_cli.IsAvailable) return;
+        // One CLI call shared across all widgets — then write to each state.
+        var folders = (await _cli.ListFoldersAsync().ConfigureAwait(false)).ToList();
+        var now = DateTimeOffset.Now;
+        foreach (var id in _active.Keys.ToArray())
+        {
+            await FireAndLog(() => _gate.WithLockAsync(id, () =>
+            {
+                // Re-check under the gate: the widget may have been deleted
+                // between the snapshot and our turn. If so, skip the save so
+                // we don't resurrect a deleted entry.
+                if (!_active.ContainsKey(id)) return Task.CompletedTask;
+                var state = _store.Get(id);
+                state.CachedFolders = folders;
+                state.CachedFoldersAt = now;
+                _store.Save(state);
+                return Task.CompletedTask;
+            }), id, "refreshAllActive", pushUpdateOnCompletion: true).ConfigureAwait(false);
+        }
+    }
+
+    private void PushUpdate(string widgetId)
+    {
+        try
+        {
+            if (!_active.TryGetValue(widgetId, out var session)) return;
+            var state = _store.Get(widgetId);
+
+            string template;
+            string data;
+
+            if (!_cli.IsAvailable)
+            {
+                template = CardTemplates.Load(CardTemplates.CliMissingTemplate);
+                data = CardDataBuilder.BuildCliMissingData("`obsidian` was not found on PATH.");
+            }
+            else if (string.Equals(session.DefinitionId, WidgetIdentifiers.RecentNotesWidgetId, StringComparison.Ordinal))
+            {
+                template = CardTemplates.Load(CardTemplates.RecentNotesTemplate);
+                data = CardDataBuilder.BuildQuickNoteData(state, session.ShowAdvanced);
+            }
+            else
+            {
+                template = CardTemplates.LoadForSize(session.Size);
+                data = CardDataBuilder.BuildQuickNoteData(state, session.ShowAdvanced);
+            }
+
+            _log.Info($"PushUpdate id={widgetId} def={session.DefinitionId} size={session.Size} templateLen={template?.Length ?? 0} dataLen={data?.Length ?? 0}");
+            var options = new WidgetUpdateRequestOptions(widgetId)
+            {
+                Template = template,
+                Data = data,
+                CustomState = string.Empty,
+            };
+            WidgetManager.GetDefault().UpdateWidget(options);
+        }
+        catch (Exception ex)
+        {
+            _log.Error("PushUpdate failed", ex);
+        }
+    }
+
+    private static void RememberRecent(List<string> list, string entry, int max)
+    {
+        list.RemoveAll(e => string.Equals(e, entry, StringComparison.OrdinalIgnoreCase));
+        list.Insert(0, entry);
+        if (list.Count > max) list.RemoveRange(max, list.Count - max);
+    }
+
+    private static Dictionary<string, string> ParseInputs(string? json)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(json)) return map;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return map;
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                if (prop.Value.ValueKind == JsonValueKind.String)
+                    map[prop.Name] = prop.Value.GetString() ?? string.Empty;
+                else if (prop.Value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                    map[prop.Name] = prop.Value.GetBoolean() ? "true" : "false";
+                else
+                    map[prop.Name] = prop.Value.ToString();
+            }
+        }
+        catch { /* ignore malformed */ }
+        return map;
+    }
+
+    private static bool ParseBool(string? s, bool fallback) =>
+        s is null ? fallback : string.Equals(s, "true", StringComparison.OrdinalIgnoreCase);
+
+    private static string? TryReadClipboardText()
+    {
+        try
+        {
+            var t = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+            if (t.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+            {
+                // GetTextAsync returns IAsyncOperation<string>; block briefly.
+                var op = t.GetTextAsync();
+                return op.AsTask().GetAwaiter().GetResult();
+            }
+        }
+        catch { /* ignore */ }
+        return null;
+    }
+
+    internal sealed class WidgetSession
+    {
+        public string Id { get; }
+        public string DefinitionId { get; }
+        public string Size { get; set; }
+        public bool ShowAdvanced { get; set; }
+        public string? PendingBodyPaste { get; set; }
+
+        public WidgetSession(string id, string definitionId, string size)
+        {
+            Id = id; DefinitionId = definitionId; Size = size;
+        }
+    }
+}

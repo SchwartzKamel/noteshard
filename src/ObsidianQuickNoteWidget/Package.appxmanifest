@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap10 com desktop rescap">
+
+  <Identity Name="ObsidianQuickNoteWidget"
+            Publisher="CN=ObsidianQuickNoteWidgetDev"
+            Version="1.0.0.1" />
+
+  <Properties>
+    <DisplayName>Obsidian Quick Note Widget</DisplayName>
+    <PublisherDisplayName>ObsidianQuickNoteWidget (dev)</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22621.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="ObsidianQuickNoteWidget.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Obsidian Quick Note Widget"
+        Description="Create Obsidian notes from the Windows 11 Widget Board"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer Executable="ObsidianQuickNoteWidget.exe"
+                           DisplayName="Obsidian Quick Note Widget Provider"
+                           Arguments="-RegisterProcessAsComServer">
+              <com:Class Id="B3E8F4D4-3E9B-4A5E-9F3A-1F2E7B6A2C91"
+                         DisplayName="ObsidianWidgetProvider" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
+
+        <uap3:Extension Category="windows.appExtension">
+          <uap3:AppExtension
+            Name="com.microsoft.windows.widgets"
+            DisplayName="Obsidian Quick Note Widget Provider"
+            Id="ObsidianQuickNoteWidgetProvider"
+            PublicFolder="Public">
+            <uap3:Properties>
+              <WidgetProvider>
+                <ProviderIcons>
+                  <Icon Path="Assets\WidgetIcon.light.png" />
+                  <DarkModeIcon Path="Assets\WidgetIcon.dark.png" />
+                </ProviderIcons>
+                <Activation>
+                  <CreateInstance ClassId="B3E8F4D4-3E9B-4A5E-9F3A-1F2E7B6A2C91" />
+                </Activation>
+                <Definitions>
+                  <Definition Id="ObsidianQuickNote"
+                              DisplayName="Obsidian Quick Note"
+                              Description="Create an Obsidian note directly from the Widget Board."
+                              AllowMultiple="true">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                      <Capability><Size Name="large" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons>
+                        <Icon Path="Assets\WidgetIcon.light.png" />
+                        <DarkModeIcon Path="Assets\WidgetIcon.dark.png" />
+                      </Icons>
+                      <Screenshots>
+                        <Screenshot Path="Assets\QuickNote.screenshot.png" DisplayAltText="Obsidian Quick Note widget" />
+                      </Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                    <AdditionalTasks />
+                  </Definition>
+                  <Definition Id="ObsidianRecentNotes"
+                              DisplayName="Obsidian Recent Notes"
+                              Description="View recently created Obsidian notes."
+                              AllowMultiple="false">
+                    <Capabilities>
+                      <Capability><Size Name="medium" /></Capability>
+                      <Capability><Size Name="large" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons>
+                        <Icon Path="Assets\WidgetIcon.light.png" />
+                        <DarkModeIcon Path="Assets\WidgetIcon.dark.png" />
+                      </Icons>
+                      <Screenshots>
+                        <Screenshot Path="Assets\QuickNote.screenshot.png" DisplayAltText="Obsidian Recent Notes widget" />
+                      </Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                    <AdditionalTasks />
+                  </Definition>
+                </Definitions>
+              </WidgetProvider>
+            </uap3:Properties>
+          </uap3:AppExtension>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+</Package>

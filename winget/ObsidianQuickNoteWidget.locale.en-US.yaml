@@ -1,0 +1,26 @@
+# TODO: replace placeholder repo URL with the real GitHub repo once pushed.
+# TODO: PackageVersion uses the 3-part winget convention; the 4-part MSIX counterpart is 1.0.0.1 (see Package.appxmanifest Identity/@Version).
+PackageIdentifier: Lafiamafia.ObsidianQuickNoteWidget
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: ObsidianQuickNoteWidget
+PublisherUrl: https://github.com/lafiamafia/ObsidianQuickNoteWidget
+PublisherSupportUrl: https://github.com/lafiamafia/ObsidianQuickNoteWidget/issues
+PackageName: Obsidian Quick Note Widget
+PackageUrl: https://github.com/lafiamafia/ObsidianQuickNoteWidget
+License: MIT
+ShortDescription: Create Obsidian notes from the Windows 11 Widget Board.
+Description: |-
+  A Windows 11 Widget Board widget and tray companion that lets you create
+  Obsidian notes (title, folder, body, tags, template) without leaving the
+  Widget Board. Shells out to the official `obsidian` CLI bundled with
+  Obsidian 1.12+.
+Moniker: obsidianquicknote
+Tags:
+  - obsidian
+  - notes
+  - widget
+  - windows11
+  - productivity
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

@@ -1,0 +1,61 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Recent notes",
+      "weight": "Bolder",
+      "size": "Medium",
+      "spacing": "None"
+    },
+    {
+      "type": "Container",
+      "items": [
+        {
+          "$data": "${$root.recentNotes}",
+          "type": "TextBlock",
+          "text": "📝 ${title}",
+          "wrap": true,
+          "selectAction": {
+            "type": "Action.Execute",
+            "verb": "openRecent",
+            "data": { "widgetId": "${$root.widgetId}", "verb": "openRecent", "path": "${path}" }
+          }
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "No notes yet — create one below.",
+      "wrap": true,
+      "isVisible": "${$root.hasNoRecents}",
+      "color": "Accent"
+    },
+    {
+      "type": "TextBlock",
+      "text": "${$root.statusMessage}",
+      "wrap": true,
+      "color": "${$root.statusColor}",
+      "isVisible": "${$root.hasStatus}",
+      "spacing": "Small",
+      "size": "Small"
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "title": "Create note",
+      "verb": "createNote",
+      "style": "positive",
+      "data": { "widgetId": "${widgetId}", "verb": "createNote" }
+    },
+    {
+      "type": "Action.Execute",
+      "title": "Open vault",
+      "verb": "openVault",
+      "data": { "widgetId": "${widgetId}", "verb": "openVault" }
+    }
+  ]
+}

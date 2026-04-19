@@ -1,0 +1,34 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Obsidian CLI not found",
+      "weight": "Bolder",
+      "color": "Attention"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Enable the CLI in **Obsidian → Settings → General → Command Line Interface**, then restart Windows.",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "${$root.detail}",
+      "wrap": true,
+      "isVisible": "${$root.hasDetail}",
+      "isSubtle": true,
+      "size": "Small"
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "title": "Re-check",
+      "verb": "recheckCli",
+      "data": { "widgetId": "${widgetId}", "verb": "recheckCli" }
+    }
+  ]
+}

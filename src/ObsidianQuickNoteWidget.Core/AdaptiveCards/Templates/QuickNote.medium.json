@@ -1,0 +1,61 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Input.Text",
+      "id": "title",
+      "placeholder": "Title",
+      "isRequired": true,
+      "errorMessage": "Title is required",
+      "value": "${$root.inputs.title}"
+    },
+    {
+      "type": "Input.ChoiceSet",
+      "id": "folder",
+      "placeholder": "Folder (type new or pick)",
+      "style": "expanded",
+      "isMultiSelect": false,
+      "value": "${$root.inputs.folder}",
+      "choices": [
+        {
+          "$data": "${$root.folderChoices}",
+          "title": "${title}",
+          "value": "${value}"
+        }
+      ]
+    },
+    {
+      "type": "Input.Text",
+      "id": "body",
+      "placeholder": "Body (optional)",
+      "isMultiline": true,
+      "value": "${$root.inputs.body}"
+    },
+    {
+      "type": "TextBlock",
+      "text": "${$root.statusMessage}",
+      "wrap": true,
+      "color": "${$root.statusColor}",
+      "isVisible": "${$root.hasStatus}",
+      "spacing": "Small",
+      "size": "Small"
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "title": "Create note",
+      "verb": "createNote",
+      "style": "positive",
+      "data": { "widgetId": "${widgetId}", "verb": "createNote" }
+    },
+    {
+      "type": "Action.Execute",
+      "title": "Paste → body",
+      "verb": "pasteClipboard",
+      "data": { "widgetId": "${widgetId}", "verb": "pasteClipboard" }
+    }
+  ]
+}

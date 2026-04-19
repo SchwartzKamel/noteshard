@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ObsidianQuickNoteTray/ObsidianQuickNoteTray.csproj" />
+    <Project Path="src/ObsidianQuickNoteWidget.Core/ObsidianQuickNoteWidget.Core.csproj" />
+    <Project Path="src/ObsidianQuickNoteWidget/ObsidianQuickNoteWidget.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ObsidianQuickNoteWidget.Core.Tests/ObsidianQuickNoteWidget.Core.Tests.csproj" />
+  </Folder>
+</Solution>

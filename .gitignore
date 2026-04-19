@@ -1,0 +1,58 @@
+## Build output
+bin/
+obj/
+out/
+*.user
+*.suo
+*.vs/
+.vs/
+.vscode/
+.idea/
+
+## MSIX / packaging
+AppPackages/
+BundleArtifacts/
+*.appx
+*.appxbundle
+*.appxupload
+*.msix
+*.msixbundle
+*.msixupload
+*.pfx
+*.cer
+GeneratedArtifacts/
+
+## .NET / NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+.nuget/
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## Tests / logs
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+## Rider / JetBrains
+.idea/
+*.iml
+
+## Session artifacts (should never be committed)
+.copilot/
+
+## Signing / secrets
+dev-cert/
+password.txt
+
+## Logs
+**/*.log
+
+## Azure Functions / local settings
+local.settings.json

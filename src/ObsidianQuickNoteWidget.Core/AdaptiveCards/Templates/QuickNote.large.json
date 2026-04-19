@@ -1,0 +1,141 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Input.Text",
+      "id": "title",
+      "label": "Title",
+      "placeholder": "e.g. Meeting with Alice",
+      "isRequired": true,
+      "errorMessage": "Title is required",
+      "value": "${$root.inputs.title}"
+    },
+    {
+      "type": "Input.ChoiceSet",
+      "id": "folder",
+      "label": "Folder",
+      "placeholder": "Type or pick",
+      "style": "expanded",
+      "isMultiSelect": false,
+      "value": "${$root.inputs.folder}",
+      "choices": [
+        {
+          "$data": "${$root.folderChoices}",
+          "title": "${title}",
+          "value": "${value}"
+        }
+      ]
+    },
+    {
+      "type": "Input.Text",
+      "id": "body",
+      "label": "Body",
+      "isMultiline": true,
+      "placeholder": "Markdown supported",
+      "value": "${$root.inputs.body}"
+    },
+    {
+      "type": "Input.Text",
+      "id": "tagsCsv",
+      "label": "Tags",
+      "placeholder": "idea, research",
+      "value": "${$root.inputs.tagsCsv}",
+      "isVisible": "${$root.showAdvanced}"
+    },
+    {
+      "type": "Input.ChoiceSet",
+      "id": "template",
+      "label": "Template",
+      "style": "compact",
+      "value": "${$root.inputs.template}",
+      "isVisible": "${$root.showAdvanced}",
+      "choices": [
+        { "title": "Blank",   "value": "Blank" },
+        { "title": "Daily",   "value": "Daily" },
+        { "title": "Meeting", "value": "Meeting" },
+        { "title": "Book",    "value": "Book" },
+        { "title": "Idea",    "value": "Idea" }
+      ]
+    },
+    {
+      "type": "ColumnSet",
+      "spacing": "Small",
+      "isVisible": "${$root.showAdvanced}",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "auto",
+          "items": [
+            {
+              "type": "Input.Toggle",
+              "id": "autoDatePrefix",
+              "title": "Date prefix",
+              "valueOn": "true",
+              "valueOff": "false",
+              "value": "${$root.inputs.autoDatePrefix}"
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "auto",
+          "items": [
+            {
+              "type": "Input.Toggle",
+              "id": "openAfterCreate",
+              "title": "Open after",
+              "valueOn": "true",
+              "valueOff": "false",
+              "value": "${$root.inputs.openAfterCreate}"
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "auto",
+          "items": [
+            {
+              "type": "Input.Toggle",
+              "id": "appendToDaily",
+              "title": "Append daily",
+              "valueOn": "true",
+              "valueOff": "false",
+              "value": "${$root.inputs.appendToDaily}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "${$root.statusMessage}",
+      "wrap": true,
+      "color": "${$root.statusColor}",
+      "isVisible": "${$root.hasStatus}",
+      "spacing": "Small"
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "title": "Create",
+      "verb": "createNote",
+      "style": "positive",
+      "data": { "widgetId": "${widgetId}", "verb": "createNote" }
+    },
+    {
+      "type": "Action.Execute",
+      "title": "Paste → body",
+      "verb": "pasteClipboard",
+      "data": { "widgetId": "${widgetId}", "verb": "pasteClipboard" }
+    },
+    {
+      "type": "Action.Execute",
+      "title": "${$root.advancedLabel}",
+      "verb": "toggleAdvanced",
+      "data": { "widgetId": "${widgetId}", "verb": "toggleAdvanced" }
+    }
+  ]
+}
