@@ -39,4 +39,21 @@ public class FolderPathValidatorTests
         Assert.False(r.IsValid, $"'{input}' should be rejected");
         Assert.NotNull(r.Error);
     }
+
+    // F-16: control characters (C0 and others) must be rejected per segment.
+    [Theory]
+    [InlineData("bad\0null")]
+    [InlineData("bad\rreturn")]
+    [InlineData("bad\nnewline")]
+    [InlineData("bad\ttab")]
+    [InlineData("bad\x01soh")]
+    [InlineData("bad\x1Fus")]
+    [InlineData("bad\u007Fdel")]
+    [InlineData("a/bad\nseg/b")]
+    public void Validate_Rejects_ControlCharacters(string input)
+    {
+        var r = FolderPathValidator.Validate(input);
+        Assert.False(r.IsValid, $"'{input.Replace("\0", "\\0").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t")}' should be rejected");
+        Assert.NotNull(r.Error);
+    }
 }

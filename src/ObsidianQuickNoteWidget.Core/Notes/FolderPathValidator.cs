@@ -43,6 +43,12 @@ public static class FolderPathValidator
             if (seg.IndexOfAny(IllegalSegmentChars) >= 0)
                 return FolderValidationResult.Fail($"Illegal character in folder segment '{seg}'");
 
+            foreach (var c in seg)
+            {
+                if (char.IsControl(c))
+                    return FolderValidationResult.Fail($"Control character in folder segment '{seg}'");
+            }
+
             if (FilenameSanitizer.IsReservedWindowsName(seg))
                 return FolderValidationResult.Fail($"Reserved Windows name '{seg}' cannot be used as a folder");
 
