@@ -121,6 +121,98 @@ public class ObsidianCliParsersTests
         Assert.Empty(ObsidianCliParsers.ParseFolders(stdout));
     }
 
+    // --- ParseRecents -------------------------------------------------------
+
+    [Fact]
+    public void ParseRecents_MixedFilesAndFolders_KeepsOnlyMarkdownFiles()
+    {
+        // Live probe output: `obsidian recents` returns both files and folders
+        // mixed. We must keep only `.md` files.
+        var stdout = "Welcome.md\naudit-v3/deep/nested/new-note.md\naudit-v3/deep/nested\nTest/test.md\n2026-04-19.md\n";
+        var list = ObsidianCliParsers.ParseRecents(stdout, max: 10);
+        string[] expected =
+        [
+            "Welcome.md",
+            "audit-v3/deep/nested/new-note.md",
+            "Test/test.md",
+            "2026-04-19.md",
+        ];
+        Assert.Equal(expected, list);
+    }
+
+    [Fact]
+    public void ParseRecents_PreservesOrder_NewestFirst()
+    {
+        var stdout = "z.md\na.md\nm.md\n";
+        var list = ObsidianCliParsers.ParseRecents(stdout, max: 10);
+        string[] expected = ["z.md", "a.md", "m.md"];
+        Assert.Equal(expected, list);
+    }
+
+    [Fact]
+    public void ParseRecents_CapsAtMax()
+    {
+        var stdout = string.Join('\n', Enumerable.Range(1, 20).Select(i => $"n{i}.md")) + "\n";
+        var list = ObsidianCliParsers.ParseRecents(stdout, max: 5);
+        Assert.Equal(5, list.Count);
+        Assert.Equal("n1.md", list[0]);
+        Assert.Equal("n5.md", list[4]);
+    }
+
+    [Fact]
+    public void ParseRecents_DedupesCaseInsensitively_PreservesFirstOccurrence()
+    {
+        var stdout = "Notes/Hi.md\nnotes/hi.md\nNOTES/HI.MD\nOther.md\n";
+        var list = ObsidianCliParsers.ParseRecents(stdout, max: 10);
+        string[] expected = ["Notes/Hi.md", "Other.md"];
+        Assert.Equal(expected, list);
+    }
+
+    [Theory]
+    [InlineData(".MD")]
+    [InlineData(".Md")]
+    [InlineData(".mD")]
+    public void ParseRecents_MdSuffix_IsCaseInsensitive(string suffix)
+    {
+        var stdout = $"file1{suffix}\nfolder-only\n";
+        var list = ObsidianCliParsers.ParseRecents(stdout, max: 10);
+        string[] expected = [$"file1{suffix}"];
+        Assert.Equal(expected, list);
+    }
+
+    [Fact]
+    public void ParseRecents_TrimsWhitespace()
+    {
+        var stdout = "  spaced.md  \n\tTabbed.md\t\n";
+        var list = ObsidianCliParsers.ParseRecents(stdout, max: 10);
+        string[] expected = ["spaced.md", "Tabbed.md"];
+        Assert.Equal(expected, list);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    [InlineData("\n\n")]
+    public void ParseRecents_EmptyInput_ReturnsEmpty(string? stdout)
+    {
+        Assert.Empty(ObsidianCliParsers.ParseRecents(stdout, max: 10));
+    }
+
+    [Fact]
+    public void ParseRecents_OnlyFolders_ReturnsEmpty()
+    {
+        var stdout = "folder-a\nfolder-b/sub\n";
+        Assert.Empty(ObsidianCliParsers.ParseRecents(stdout, max: 10));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ParseRecents_NonPositiveMax_ReturnsEmpty(int max)
+    {
+        Assert.Empty(ObsidianCliParsers.ParseRecents("a.md\nb.md\n", max));
+    }
+
     // --- EscapeContent ------------------------------------------------------
 
     [Fact]

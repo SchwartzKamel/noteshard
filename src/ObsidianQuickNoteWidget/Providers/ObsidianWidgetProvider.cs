@@ -40,6 +40,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     // with the process.
     private readonly Timer _folderRefreshTimer;
     private static readonly TimeSpan FolderRefreshInterval = TimeSpan.FromMinutes(2);
+    internal static readonly TimeSpan RecentNotesCacheTtl = TimeSpan.FromSeconds(30);
 
     public ObsidianWidgetProvider()
         : this(new FileLog(), new JsonStateStore(), null, null) { }
@@ -151,6 +152,12 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     }
 
     public void Deactivate(string widgetId) { _log.Info($"Deactivate id={widgetId}"); _active.TryRemove(widgetId, out _); }
+
+    // Test-only hook: register a widget in the active map without going
+    // through the COM Create/Activate path. Internal + guarded by
+    // InternalsVisibleTo to the test assembly.
+    internal void RegisterActiveForTest(string widgetId, string definitionId)
+        => _active[widgetId] = new WidgetSession(widgetId, definitionId, _store.Get(widgetId).Size);
 
     // ---- IWidgetProvider2 ----
 
@@ -418,6 +425,51 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     }
 
     /// <summary>
+    /// Pure policy helper: should a RecentNotes-definition widget refresh its
+    /// recents list? True when <paramref name="now"/> is past
+    /// <see cref="WidgetState.RecentNotesRefreshedAt"/> + <paramref name="ttl"/>.
+    /// Extracted for unit testability.
+    /// </summary>
+    internal static bool ShouldRefreshRecents(WidgetState state, DateTimeOffset now, TimeSpan ttl)
+        => now - state.RecentNotesRefreshedAt > ttl;
+
+    /// <summary>
+    /// Refreshes the <see cref="WidgetState.RecentNotes"/> list for a
+    /// RecentNotes-definition widget from the native <c>obsidian recents</c>
+    /// CLI verb. The CLI call happens outside the per-widget gate; the state
+    /// mutation (replace list, stamp <see cref="WidgetState.RecentNotesRefreshedAt"/>,
+    /// save) happens under the gate so a concurrent note-create cannot
+    /// interleave.
+    /// </summary>
+    internal async Task RefreshRecentNotesAsync(string widgetId)
+    {
+        if (!_cli.IsAvailable) return;
+        var recents = await _cli.ListRecentsAsync(max: 16).ConfigureAwait(false);
+        var now = DateTimeOffset.Now;
+        await _gate.WithLockAsync(widgetId, () =>
+        {
+            if (!_active.ContainsKey(widgetId)) return Task.CompletedTask;
+            var state = _store.Get(widgetId);
+            // Dedup case-insensitively + trim. Cap to 16 (already capped by CLI
+            // layer but defensive).
+            var deduped = new List<string>(recents.Count);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in recents)
+            {
+                var t = (p ?? string.Empty).Trim();
+                if (t.Length == 0) continue;
+                if (seen.Add(t)) deduped.Add(t);
+                if (deduped.Count >= 16) break;
+            }
+            state.RecentNotes = deduped;
+            state.RecentNotesRefreshedAt = now;
+            _store.Save(state);
+            return Task.CompletedTask;
+        }).ConfigureAwait(false);
+        SafePushUpdate(widgetId);
+    }
+
+    /// <summary>
     /// Periodic-timer callback: refreshes the folder cache for every currently
     /// active widget so the dropdown picks up vault changes made in Obsidian
     /// without the user having to deactivate/reactivate the widget.
@@ -473,6 +525,14 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
             }
             else if (string.Equals(session.DefinitionId, WidgetIdentifiers.RecentNotesWidgetId, StringComparison.Ordinal))
             {
+                // Fire-and-log a refresh when the 30s TTL has expired. The CLI
+                // call runs outside the gate; on completion it re-saves state
+                // and triggers another PushUpdate, at which point this branch
+                // renders the fresh list from state.
+                if (_cli.IsAvailable && ShouldRefreshRecents(state, DateTimeOffset.Now, RecentNotesCacheTtl))
+                {
+                    FireAndLog(() => RefreshRecentNotesAsync(widgetId), widgetId, "refreshRecentNotes");
+                }
                 template = CardTemplates.Load(CardTemplates.RecentNotesTemplate);
                 data = CardDataBuilder.BuildQuickNoteData(state, session.ShowAdvanced);
             }

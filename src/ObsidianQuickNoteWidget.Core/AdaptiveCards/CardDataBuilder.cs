@@ -278,7 +278,17 @@ public static class CardDataBuilder
         foreach (var path in s.RecentNotes.Take(8))
         {
             var title = Path.GetFileNameWithoutExtension(path);
-            arr.Add(new JsonObject { ["title"] = title, ["path"] = path });
+            var dir = Path.GetDirectoryName(path) ?? string.Empty;
+            // Normalize to forward-slashes so the card subtitle matches the
+            // vault-relative convention that the Obsidian CLI emits.
+            var folder = dir.Replace('\\', '/');
+            arr.Add(new JsonObject
+            {
+                ["title"] = title,
+                ["path"] = path,
+                ["folder"] = folder,
+                ["hasFolder"] = !string.IsNullOrEmpty(folder),
+            });
         }
         return arr;
     }

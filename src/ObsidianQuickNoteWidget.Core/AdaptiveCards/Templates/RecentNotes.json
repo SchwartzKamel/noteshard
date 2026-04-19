@@ -15,14 +15,31 @@
       "items": [
         {
           "$data": "${$root.recentNotes}",
-          "type": "TextBlock",
-          "text": "📝 ${title}",
-          "wrap": true,
+          "type": "Container",
+          "spacing": "Small",
           "selectAction": {
             "type": "Action.Execute",
             "verb": "openRecent",
             "data": { "widgetId": "${$root.widgetId}", "verb": "openRecent", "path": "${path}" }
-          }
+          },
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "📝 ${title}",
+              "weight": "Bolder",
+              "wrap": true,
+              "spacing": "None"
+            },
+            {
+              "type": "TextBlock",
+              "text": "${folder}",
+              "wrap": true,
+              "isVisible": "${hasFolder}",
+              "isSubtle": true,
+              "size": "Small",
+              "spacing": "None"
+            }
+          ]
         }
       ]
     },

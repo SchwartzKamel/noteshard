@@ -17,6 +17,13 @@ public sealed class WidgetState
     public List<string> PinnedFolders { get; set; } = new();
     public List<string> RecentNotes { get; set; } = new();
     public DateTimeOffset? CachedFoldersAt { get; set; }
+    /// <summary>
+    /// Timestamp of the last successful <c>obsidian recents</c> refresh for a
+    /// RecentNotes-definition widget. Used to apply a 30s TTL cache so the CLI
+    /// is not hit on every render. Default <see cref="DateTimeOffset.MinValue"/>
+    /// forces a refresh on first render after activation.
+    /// </summary>
+    public DateTimeOffset RecentNotesRefreshedAt { get; set; } = DateTimeOffset.MinValue;
     public string? LastStatus { get; set; }
     public string? LastError { get; set; }
     public string? LastCreatedPath { get; set; }

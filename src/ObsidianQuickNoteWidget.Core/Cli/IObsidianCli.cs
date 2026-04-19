@@ -19,6 +19,15 @@ public interface IObsidianCli
     /// <summary>Lists vault folders (relative to vault root). Returns empty list if unavailable.</summary>
     Task<IReadOnlyList<string>> ListFoldersAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Lists the most recently opened notes (vault-relative paths, newest first).
+    /// The native <c>obsidian recents</c> verb returns both files and folders
+    /// mixed; this method filters to <c>.md</c> files only and caps the result
+    /// at <paramref name="max"/>. Returns an empty list if the CLI is missing
+    /// or reports an error.
+    /// </summary>
+    Task<IReadOnlyList<string>> ListRecentsAsync(int max = 10, CancellationToken ct = default);
+
     /// <summary>Creates a note; returns the vault-relative path of the created note, or null on failure.</summary>
     Task<string?> CreateNoteAsync(string vaultRelativePath, string body, CancellationToken ct = default);
 

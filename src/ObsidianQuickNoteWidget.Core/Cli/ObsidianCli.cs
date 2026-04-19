@@ -17,6 +17,7 @@ public sealed class ObsidianCli : IObsidianCli
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
     private static readonly string[] VaultInfoPathArgs = ["vault", "info=path"];
     private static readonly string[] FoldersArgs = ["folders"];
+    private static readonly string[] RecentsArgs = ["recents"];
     // Only genuine PE executables are accepted. `.cmd` / `.bat` are rejected to
     // close a PATH-hijack vector (CWE-426/427): an attacker-writable PATH entry
     // containing `obsidian.cmd` would otherwise run arbitrary shell script with
@@ -127,6 +128,28 @@ public sealed class ObsidianCli : IObsidianCli
         var list = ObsidianCliParsers.ParseFolders(r.StdOut);
 
         _log.Info($"ListFoldersAsync: {list.Count} folder(s)");
+        return list;
+    }
+
+    public async Task<IReadOnlyList<string>> ListRecentsAsync(int max = 10, CancellationToken ct = default)
+    {
+        // `obsidian recents` prints up to 10 vault-relative paths (one per line),
+        // mixing files and folders. We keep `.md` files only and cap to `max`.
+        var r = await RunAsync(RecentsArgs, ct: ct).ConfigureAwait(false);
+        if (!r.Succeeded)
+        {
+            _log.Warn($"obsidian recents failed: {r.StdErr.Trim()}");
+            return Array.Empty<string>();
+        }
+
+        if (ObsidianCliParsers.HasCliError(r.StdOut))
+        {
+            _log.Warn($"obsidian recents reported error on stdout: {r.StdOut.Trim()}");
+            return Array.Empty<string>();
+        }
+
+        var list = ObsidianCliParsers.ParseRecents(r.StdOut, max);
+        _log.Info($"ListRecentsAsync: {list.Count} note(s)");
         return list;
     }
 

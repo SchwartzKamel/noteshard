@@ -30,6 +30,8 @@ public class ObsidianCommandInvokerTests
         public Task<string?> GetVaultRootAsync(CancellationToken ct = default) => Task.FromResult<string?>(null);
         public Task<IReadOnlyList<string>> ListFoldersAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        public Task<IReadOnlyList<string>> ListRecentsAsync(int max = 10, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
         public Task<string?> CreateNoteAsync(string vaultRelativePath, string body, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
         public Task<bool> OpenNoteAsync(string vaultRelativePath, CancellationToken ct = default)

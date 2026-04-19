@@ -115,7 +115,43 @@ public class CardDataBuilderTests
         Assert.Equal(2, recents.Count);
         Assert.Equal("Hello", recents[0].GetProperty("title").GetString());
         Assert.Equal("Inbox/Hello.md", recents[0].GetProperty("path").GetString());
+        Assert.Equal("Inbox", recents[0].GetProperty("folder").GetString());
+        Assert.True(recents[0].GetProperty("hasFolder").GetBoolean());
         Assert.Equal("World", recents[1].GetProperty("title").GetString());
+        Assert.Equal("Notes", recents[1].GetProperty("folder").GetString());
+    }
+
+    [Fact]
+    public void QuickNoteData_RecentNotes_VaultRootEntry_HasEmptyFolder()
+    {
+        var s = new WidgetState
+        {
+            WidgetId = "w",
+            RecentNotes = new List<string> { "Welcome.md" },
+        };
+        var json = CardDataBuilder.BuildQuickNoteData(s, showAdvanced: false);
+        using var doc = JsonDocument.Parse(json);
+
+        var entry = doc.RootElement.GetProperty("recentNotes").EnumerateArray().Single();
+        Assert.Equal("Welcome", entry.GetProperty("title").GetString());
+        Assert.Equal("Welcome.md", entry.GetProperty("path").GetString());
+        Assert.Equal(string.Empty, entry.GetProperty("folder").GetString());
+        Assert.False(entry.GetProperty("hasFolder").GetBoolean());
+    }
+
+    [Fact]
+    public void QuickNoteData_RecentNotes_NestedFolder_UsesForwardSlashes()
+    {
+        var s = new WidgetState
+        {
+            WidgetId = "w",
+            RecentNotes = new List<string> { "audit-v3/deep/nested/new-note.md" },
+        };
+        var json = CardDataBuilder.BuildQuickNoteData(s, showAdvanced: false);
+        using var doc = JsonDocument.Parse(json);
+
+        var entry = doc.RootElement.GetProperty("recentNotes").EnumerateArray().Single();
+        Assert.Equal("audit-v3/deep/nested", entry.GetProperty("folder").GetString());
     }
 
     [Fact]

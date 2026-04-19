@@ -45,6 +45,31 @@ internal static class ObsidianCliParsers
     }
 
     /// <summary>
+    /// Parses newline-delimited output from <c>obsidian recents</c>: trims each
+    /// line, drops empty lines, keeps only entries ending in <c>.md</c>
+    /// (case-insensitive — the verb mixes files and folders), deduplicates
+    /// case-insensitively while preserving order (newest-first), and caps to
+    /// <paramref name="max"/>.
+    /// </summary>
+    public static IReadOnlyList<string> ParseRecents(string? stdout, int max)
+    {
+        if (string.IsNullOrEmpty(stdout) || max <= 0) return Array.Empty<string>();
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var raw in stdout.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (!line.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!seen.Add(line)) continue;
+            result.Add(line);
+            if (result.Count >= max) break;
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Obsidian CLI <c>content=</c> values use literal <c>\n</c>/<c>\t</c> as
     /// newline/tab escapes. We must escape backslashes FIRST — otherwise the
     /// backslashes introduced by the newline/tab replacements would themselves
