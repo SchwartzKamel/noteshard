@@ -121,6 +121,17 @@ pack: ## Publish the widget as a sideload MSIX (Release, $$PLATFORM)
 
 .PHONY: pack-signed
 pack-signed: ## Publish a signed MSIX (requires SIGNING_CERT + SIGNING_PASSWORD env vars)
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command " \
+	  if (-not $$env:SIGNING_CERT)     { Write-Error 'SIGNING_CERT is required'; exit 1 }; \
+	  if (-not $$env:SIGNING_PASSWORD) { Write-Error 'SIGNING_PASSWORD is required'; exit 1 }; \
+	  $$resolved = (Resolve-Path -LiteralPath $$env:SIGNING_CERT -ErrorAction SilentlyContinue).Path; \
+	  if (-not $$resolved) { $$resolved = $$env:SIGNING_CERT }; \
+	  if ($$resolved -match '[\\\\/]dev-cert[\\\\/]') { \
+	    Write-Error ('Refusing to use the local dev cert for a release build (SIGNING_CERT=' + $$resolved + '). See audit-reports/security-auditor.md F-01. Use tools\\Sign-DevMsix.ps1 for sideload dev signing instead.'); \
+	    exit 1 \
+	  }"
+endif
 	$(DOTNET) publish $(WIDGET_PROJ) -c Release -p:Platform=$(PLATFORM) \
 		-p:GenerateAppxPackageOnBuild=true \
 		-p:AppxPackageSigningEnabled=true \

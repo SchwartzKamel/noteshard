@@ -17,15 +17,22 @@ public sealed class ObsidianCli : IObsidianCli
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
     private static readonly string[] VaultInfoPathArgs = ["vault", "info=path"];
     private static readonly string[] FoldersArgs = ["folders"];
-    private static readonly string[] WindowsPathExtensions = [".exe", ".cmd", ".bat", ""];
+    // Only genuine PE executables are accepted. `.cmd` / `.bat` are rejected to
+    // close a PATH-hijack vector (CWE-426/427): an attacker-writable PATH entry
+    // containing `obsidian.cmd` would otherwise run arbitrary shell script with
+    // user-controlled args on every widget refresh. See audit-reports/security-auditor.md F-02.
+    // TODO(F-02 follow-up): verify Authenticode signature (WinVerifyTrust, expected
+    // subject "Obsidian.md Inc.") before first spawn per process lifetime.
+    private static readonly string[] WindowsPathExtensions = [".com", ".exe"];
     private static readonly string[] UnixPathExtensions = [""];
+    private static int s_warnedPathResolution;
     private readonly string? _resolvedExe;
     private readonly ILog _log;
 
     public ObsidianCli(ILog? log = null)
     {
         _log = log ?? NullLog.Instance;
-        _resolvedExe = ResolveExecutable();
+        _resolvedExe = ResolveExecutable(DefaultObsidianCliEnvironment.Instance, _log);
     }
 
     public bool IsAvailable => _resolvedExe is not null;
@@ -193,19 +200,98 @@ public sealed class ObsidianCli : IObsidianCli
         return true;
     }
 
-    private static string? ResolveExecutable()
+    /// <summary>
+    /// Preference order for locating the <c>obsidian</c> executable (see F-02):
+    /// <list type="number">
+    ///   <item>Explicit override via <c>OBSIDIAN_CLI</c> env var (if it points at an existing file).</item>
+    ///   <item>Per-machine install: <c>%ProgramFiles%\Obsidian\Obsidian.(com|exe)</c>.</item>
+    ///   <item>Per-user install: <c>%LocalAppData%\Programs\Obsidian\Obsidian.(com|exe)</c>.</item>
+    ///   <item>Registry: default value of <c>HKCU\Software\Classes\obsidian\shell\open\command</c>.</item>
+    ///   <item>PATH scan, <c>.com</c> / <c>.exe</c> only. Emits a one-shot warning.</item>
+    /// </list>
+    /// </summary>
+    internal static string? ResolveExecutable(IObsidianCliEnvironment env, ILog log)
     {
-        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        var exts = OperatingSystem.IsWindows() ? WindowsPathExtensions : UnixPathExtensions;
+        var overridePath = env.GetEnvironmentVariable("OBSIDIAN_CLI");
+        if (!string.IsNullOrWhiteSpace(overridePath) && env.FileExists(overridePath))
+        {
+            return overridePath;
+        }
+
+        if (env.IsWindows)
+        {
+            foreach (var candidate in EnumerateKnownWindowsInstallPaths(env))
+            {
+                if (env.FileExists(candidate)) return candidate;
+            }
+
+            var regCommand = env.GetObsidianProtocolOpenCommand();
+            var regExe = ExtractExeFromRegistryCommand(regCommand);
+            if (regExe is not null && env.FileExists(regExe))
+            {
+                return regExe;
+            }
+        }
+
+        // PATH fallback (last resort).
+        var pathVar = env.GetEnvironmentVariable("PATH") ?? string.Empty;
+        var exts = env.IsWindows ? WindowsPathExtensions : UnixPathExtensions;
         foreach (var dir in pathVar.Split(Path.PathSeparator))
         {
             if (string.IsNullOrWhiteSpace(dir)) continue;
             foreach (var ext in exts)
             {
                 var candidate = Path.Combine(dir, ExecutableName + ext);
-                if (File.Exists(candidate)) return candidate;
+                if (env.FileExists(candidate))
+                {
+                    if (Interlocked.Exchange(ref s_warnedPathResolution, 1) == 0)
+                    {
+                        log.Warn(
+                            $"Resolved 'obsidian' via PATH ({candidate}) " +
+                            "— consider setting OBSIDIAN_CLI to a fully-qualified path");
+                    }
+                    return candidate;
+                }
             }
         }
         return null;
     }
+
+    private static IEnumerable<string> EnumerateKnownWindowsInstallPaths(IObsidianCliEnvironment env)
+    {
+        var programFiles = env.GetEnvironmentVariable("ProgramFiles");
+        if (!string.IsNullOrWhiteSpace(programFiles))
+        {
+            yield return Path.Combine(programFiles, "Obsidian", "Obsidian.com");
+            yield return Path.Combine(programFiles, "Obsidian", "Obsidian.exe");
+        }
+        var localAppData = env.GetEnvironmentVariable("LOCALAPPDATA");
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            yield return Path.Combine(localAppData, "Programs", "Obsidian", "Obsidian.com");
+            yield return Path.Combine(localAppData, "Programs", "Obsidian", "Obsidian.exe");
+        }
+    }
+
+    /// <summary>
+    /// Parses the exe path out of a registry shell-open command string, e.g.
+    /// <c>"C:\Users\x\AppData\Local\Programs\Obsidian\Obsidian.exe" --protocol %1</c>.
+    /// </summary>
+    internal static string? ExtractExeFromRegistryCommand(string? command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return null;
+        command = command.Trim();
+        if (command[0] == '"')
+        {
+            var end = command.IndexOf('"', 1);
+            if (end > 1) return command.Substring(1, end - 1);
+            return null;
+        }
+        // Unquoted — take up to first whitespace.
+        var ws = command.IndexOfAny([' ', '\t']);
+        return ws < 0 ? command : command[..ws];
+    }
+
+    // Reset the one-shot PATH-resolution warning. Tests only.
+    internal static void ResetPathWarningForTests() => Interlocked.Exchange(ref s_warnedPathResolution, 0);
 }

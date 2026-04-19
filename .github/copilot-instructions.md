@@ -34,7 +34,7 @@ CI (`.github/workflows/build.yml`) runs restore → build Debug → test on `win
 
 Widget Host aggressively caches widget definitions (icon, size list, CLSID). Updating an already-installed package often leaves stale cached metadata, so after changing `Package.appxmanifest` (especially sizes or definitions) you typically need a **full uninstall + reinstall**, not `Add-AppxPackage -Force*`. Also kill `Widgets.exe`, `WidgetService.exe`, `WebExperienceHost.exe`, `dasHost.exe`, and any running `ObsidianQuickNoteWidget.exe` before reinstalling.
 
-Sideloaded builds require the dev cert to be trusted. Self-signed dev cert lives at `%LocalAppData%\ObsidianQuickNoteWidget\dev-cert\dev.pfx` (password `obsidiandev`, CN=`ObsidianQuickNoteWidgetDev`); sign with `signtool sign /fd SHA256 /a /f <pfx> /p obsidiandev <msix>`.
+Sideloaded builds require the dev cert to be trusted. Generate one with `.\tools\New-DevCert.ps1`; it writes `%LocalAppData%\ObsidianQuickNoteWidget\dev-cert\dev.pfx` (CN=`ObsidianQuickNoteWidgetDev`, 90-day validity) alongside a `password.txt` containing a freshly generated random 24-character password with a user-only ACL. The password is never printed or committed — sign MSIXes with `.\tools\Sign-DevMsix.ps1 <path>` which reads the file at runtime. The `dev-cert\` folder is git-ignored. `make pack-signed` is for real release certs only and refuses any `SIGNING_CERT` path under `dev-cert\`.
 
 ## Architecture
 

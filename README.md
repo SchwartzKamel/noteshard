@@ -57,11 +57,21 @@ Plain `dotnet` commands also work — see `.github/copilot-instructions.md` for 
 
 ### Dev cert + signing
 
-Sideloaded MSIX builds need a trusted dev cert. One is generated at `%LocalAppData%\ObsidianQuickNoteWidget\dev-cert\dev.pfx` (password `obsidiandev`, CN `ObsidianQuickNoteWidgetDev`). Sign with:
+Sideloaded MSIX builds need a trusted dev cert. Generate one on first use:
 
 ```powershell
-signtool sign /fd SHA256 /a /f $env:LocalAppData\ObsidianQuickNoteWidget\dev-cert\dev.pfx /p obsidiandev <path-to-msix>
+.\tools\New-DevCert.ps1
 ```
+
+This creates `%LocalAppData%\ObsidianQuickNoteWidget\dev-cert\dev.pfx` (CN `ObsidianQuickNoteWidgetDev`, 90-day validity) and writes a fresh random 24-character password to `%LocalAppData%\ObsidianQuickNoteWidget\dev-cert\password.txt` with a user-only ACL. The password is **generated on first run and never printed, committed, or shared** — do not copy it out of that folder. Both the `dev-cert\` folder and `*.pfx` / `*.cer` are git-ignored.
+
+Sign a built MSIX using the helper (reads `password.txt` at runtime):
+
+```powershell
+.\tools\Sign-DevMsix.ps1 <path-to-msix>
+```
+
+`make pack-signed` is reserved for **release** signing with a real code-signing cert and will refuse to run if `SIGNING_CERT` points inside any `dev-cert\` directory.
 
 Install the accompanying `.cer` into **Trusted People** (LocalMachine) once, then install the MSIX:
 

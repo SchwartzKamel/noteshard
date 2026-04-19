@@ -21,6 +21,10 @@ BundleArtifacts/
 *.pfx
 *.cer
 GeneratedArtifacts/
+# Dev-cert scratch area (see tools/New-DevCert.ps1). Lives under %LocalAppData%
+# so is normally outside the tree, but guard explicitly in case a developer
+# copies it in for any reason. Must never be committed.
+**/dev-cert/
 
 ## .NET / NuGet
 *.nupkg
