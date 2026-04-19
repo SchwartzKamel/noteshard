@@ -444,29 +444,81 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     internal async Task RefreshRecentNotesAsync(string widgetId)
     {
         if (!_cli.IsAvailable) return;
-        var recents = await _cli.ListRecentsAsync(max: 16).ConfigureAwait(false);
+        // `obsidian recents` returns historical paths (including files that
+        // have since been deleted), so we intersect with the live `obsidian
+        // files` list to drop ghost entries. Run both concurrently — the
+        // second call adds no wall-clock cost on top of the recents call.
+        var recentsTask = _cli.ListRecentsAsync(max: 16);
+        var filesTask = _cli.ListFilesAsync();
+        await Task.WhenAll(recentsTask, filesTask).ConfigureAwait(false);
+        var recents = recentsTask.Result;
+        var files = filesTask.Result;
         var now = DateTimeOffset.Now;
         await _gate.WithLockAsync(widgetId, () =>
         {
             if (!_active.ContainsKey(widgetId)) return Task.CompletedTask;
             var state = _store.Get(widgetId);
-            // Dedup case-insensitively + trim. Cap to 16 (already capped by CLI
-            // layer but defensive).
-            var deduped = new List<string>(recents.Count);
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var p in recents)
-            {
-                var t = (p ?? string.Empty).Trim();
-                if (t.Length == 0) continue;
-                if (seen.Add(t)) deduped.Add(t);
-                if (deduped.Count >= 16) break;
-            }
-            state.RecentNotes = deduped;
+            var filtered = IntersectRecentsWithFiles(recents, files, _log);
+            state.RecentNotes = filtered;
             state.RecentNotesRefreshedAt = now;
             _store.Save(state);
             return Task.CompletedTask;
         }).ConfigureAwait(false);
         SafePushUpdate(widgetId);
+    }
+
+    /// <summary>
+    /// Intersects <paramref name="recents"/> with <paramref name="files"/>,
+    /// preserving recents' original order (which reflects recency), deduping
+    /// case-insensitively, trimming, and capping to 16. Defensive failure
+    /// modes:
+    /// <list type="bullet">
+    ///   <item>Both empty → empty (nothing to render).</item>
+    ///   <item>Recents non-empty, files empty → return recents as-is and warn.
+    ///     Treating an empty <c>files</c> response as "vault has no files"
+    ///     would wipe the list on any CLI hiccup; showing a possibly-stale
+    ///     entry is less bad than a blank widget.</item>
+    ///   <item>Both non-empty → intersect case-insensitively.</item>
+    /// </list>
+    /// </summary>
+    internal static List<string> IntersectRecentsWithFiles(
+        IReadOnlyList<string> recents,
+        IReadOnlyList<string> files,
+        ILog log)
+    {
+        var trimmed = new List<string>(recents.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in recents)
+        {
+            var t = (p ?? string.Empty).Trim();
+            if (t.Length == 0) continue;
+            if (seen.Add(t)) trimmed.Add(t);
+        }
+
+        if (trimmed.Count == 0) return trimmed;
+
+        if (files.Count == 0)
+        {
+            log.Warn($"RefreshRecentNotes: 'obsidian files' returned 0 entries while recents returned {trimmed.Count}; skipping intersection (possible CLI hiccup).");
+            if (trimmed.Count > 16) trimmed.RemoveRange(16, trimmed.Count - 16);
+            return trimmed;
+        }
+
+        var liveSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in files)
+        {
+            var t = (f ?? string.Empty).Trim();
+            if (t.Length > 0) liveSet.Add(t);
+        }
+
+        var result = new List<string>(trimmed.Count);
+        foreach (var p in trimmed)
+        {
+            if (!liveSet.Contains(p)) continue;
+            result.Add(p);
+            if (result.Count >= 16) break;
+        }
+        return result;
     }
 
     /// <summary>

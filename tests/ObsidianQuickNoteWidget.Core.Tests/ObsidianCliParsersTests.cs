@@ -213,6 +213,66 @@ public class ObsidianCliParsersTests
         Assert.Empty(ObsidianCliParsers.ParseRecents("a.md\nb.md\n", max));
     }
 
+    // --- ParseFiles ---------------------------------------------------------
+
+    [Fact]
+    public void ParseFiles_KeepsOnlyMarkdown()
+    {
+        var stdout = "Welcome.md\nTest/test.md\nnotes/diagram.canvas\nAssets/image.png\nREADME\n";
+        var list = ObsidianCliParsers.ParseFiles(stdout);
+        string[] expected = ["Welcome.md", "Test/test.md"];
+        Assert.Equal(expected, list);
+    }
+
+    [Theory]
+    [InlineData(".MD")]
+    [InlineData(".Md")]
+    [InlineData(".mD")]
+    public void ParseFiles_MdSuffix_IsCaseInsensitive(string suffix)
+    {
+        var stdout = $"file1{suffix}\nfolder-only\n";
+        var list = ObsidianCliParsers.ParseFiles(stdout);
+        string[] expected = [$"file1{suffix}"];
+        Assert.Equal(expected, list);
+    }
+
+    [Fact]
+    public void ParseFiles_TrimsAndSkipsEmpty()
+    {
+        var stdout = "  Welcome.md  \n\n\tTest/test.md\t\n   \n";
+        var list = ObsidianCliParsers.ParseFiles(stdout);
+        string[] expected = ["Welcome.md", "Test/test.md"];
+        Assert.Equal(expected, list);
+    }
+
+    [Fact]
+    public void ParseFiles_HandlesCrLf()
+    {
+        var stdout = "Welcome.md\r\nTest/test.md\r\n";
+        var list = ObsidianCliParsers.ParseFiles(stdout);
+        string[] expected = ["Welcome.md", "Test/test.md"];
+        Assert.Equal(expected, list);
+    }
+
+    [Fact]
+    public void ParseFiles_DedupesCaseInsensitively_PreservesFirstOccurrence()
+    {
+        var stdout = "Notes/Hi.md\nnotes/hi.md\nNOTES/HI.MD\nOther.md\n";
+        var list = ObsidianCliParsers.ParseFiles(stdout);
+        string[] expected = ["Notes/Hi.md", "Other.md"];
+        Assert.Equal(expected, list);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    [InlineData("\n\n")]
+    [InlineData("folder-only\nimage.png\n")]
+    public void ParseFiles_EmptyOrNoMd_ReturnsEmpty(string? stdout)
+    {
+        Assert.Empty(ObsidianCliParsers.ParseFiles(stdout));
+    }
+
     // --- EscapeContent ------------------------------------------------------
 
     [Fact]

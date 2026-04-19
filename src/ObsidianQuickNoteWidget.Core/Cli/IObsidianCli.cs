@@ -20,6 +20,15 @@ public interface IObsidianCli
     Task<IReadOnlyList<string>> ListFoldersAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Lists every live <c>.md</c> file in the vault (vault-relative paths).
+    /// Backed by <c>obsidian files</c>. Unlike <see cref="ListRecentsAsync"/>,
+    /// this reflects the current on-disk state — callers intersect the recents
+    /// list with this to drop ghost entries for deleted files. Returns an
+    /// empty list on CLI failure.
+    /// </summary>
+    Task<IReadOnlyList<string>> ListFilesAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Lists the most recently opened notes (vault-relative paths, newest first).
     /// The native <c>obsidian recents</c> verb returns both files and folders
     /// mixed; this method filters to <c>.md</c> files only and caps the result

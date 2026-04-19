@@ -20,7 +20,10 @@ public class ObsidianWidgetProviderRecentsTests
         public bool Available { get; set; } = true;
         public bool IsAvailable => Available;
         public int ListRecentsCalls;
+        public int ListFilesCalls;
         public IReadOnlyList<string> RecentsReply { get; set; } =
+            new[] { "Welcome.md", "Inbox/Hello.md", "Notes/World.md" };
+        public IReadOnlyList<string> FilesReply { get; set; } =
             new[] { "Welcome.md", "Inbox/Hello.md", "Notes/World.md" };
 
         public Task<CliResult> RunAsync(IReadOnlyList<string> args, string? stdin = null, TimeSpan? timeout = null, CancellationToken ct = default)
@@ -28,6 +31,11 @@ public class ObsidianWidgetProviderRecentsTests
         public Task<string?> GetVaultRootAsync(CancellationToken ct = default) => Task.FromResult<string?>(null);
         public Task<IReadOnlyList<string>> ListFoldersAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        public Task<IReadOnlyList<string>> ListFilesAsync(CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref ListFilesCalls);
+            return Task.FromResult(FilesReply);
+        }
 
         public Task<IReadOnlyList<string>> ListRecentsAsync(int max = 10, CancellationToken ct = default)
         {
@@ -115,6 +123,8 @@ public class ObsidianWidgetProviderRecentsTests
             // 20 entries with some case-insensitive duplicates.
             RecentsReply = Enumerable.Range(1, 20).Select(i => $"n{i}.md")
                 .Concat(DupeRecents).ToList(),
+            // Files list mirrors recents so intersection keeps all entries.
+            FilesReply = Enumerable.Range(1, 20).Select(i => $"n{i}.md").ToList(),
         };
         var store = new InMemoryStateStore();
         var provider = MakeProvider(cli, store);
@@ -165,6 +175,126 @@ public class ObsidianWidgetProviderRecentsTests
         // Nothing saved — Get returns a fresh default WidgetState.
         Assert.Empty(store.Get("never-registered").RecentNotes);
         Assert.Equal(DateTimeOffset.MinValue, store.Get("never-registered").RecentNotesRefreshedAt);
+    }
+
+    // ── Ghost-file filtering (v6) ─────────────────────────────────────────
+
+    private static readonly string[] GhostExpected = { "A.md", "B.md" };
+    private static readonly string[] GhostRecentsInput = { "A.md", "ghost.md", "B.md" };
+    private static readonly string[] GhostFilesInput = { "A.md", "B.md" };
+    private static readonly string[] CaseRecentsInput = { "welcome.MD", "test/Test.md" };
+    private static readonly string[] CaseFilesInput = { "Welcome.md", "Test/test.md" };
+    private static readonly string[] DefensiveRecentsInput = { "A.md", "B.md" };
+    private static readonly string[] AllGhostRecentsInput = { "ghost1.md", "ghost2.md" };
+    private static readonly string[] AllGhostFilesInput = { "Alive.md" };
+
+    [Fact]
+    public async Task Refresh_IntersectsWithFiles_DropsGhostEntries_PreservesOrder()
+    {
+        var cli = new RecordingCli
+        {
+            RecentsReply = GhostRecentsInput,
+            FilesReply = GhostFilesInput,
+        };
+        var store = new InMemoryStateStore();
+        var provider = MakeProvider(cli, store);
+
+        const string id = "recents-ghost";
+        provider.RegisterActiveForTest(id, WidgetIdentifiers.RecentNotesWidgetId);
+
+        await provider.RefreshRecentNotesAsync(id);
+
+        Assert.Equal(1, cli.ListRecentsCalls);
+        Assert.Equal(1, cli.ListFilesCalls);
+        var state = store.Get(id);
+        Assert.Equal(GhostExpected, state.RecentNotes);
+    }
+
+    [Fact]
+    public async Task Refresh_IntersectionIsCaseInsensitive()
+    {
+        // `obsidian recents` sometimes returns different casing than `obsidian
+        // files` for the same underlying path — intersection must match
+        // case-insensitively to avoid wiping real entries.
+        var cli = new RecordingCli
+        {
+            RecentsReply = CaseRecentsInput,
+            FilesReply = CaseFilesInput,
+        };
+        var store = new InMemoryStateStore();
+        var provider = MakeProvider(cli, store);
+
+        const string id = "recents-case";
+        provider.RegisterActiveForTest(id, WidgetIdentifiers.RecentNotesWidgetId);
+
+        await provider.RefreshRecentNotesAsync(id);
+
+        var state = store.Get(id);
+        // Recents' original casing is preserved (it's what we display).
+        Assert.Equal(CaseRecentsInput, state.RecentNotes);
+    }
+
+    [Fact]
+    public async Task Refresh_FilesEmpty_RecentsNonEmpty_KeepsRecentsAsIs_Defensive()
+    {
+        // Defensive: if `obsidian files` returns 0 entries (CLI hiccup) while
+        // `recents` has entries, we'd rather show potentially-stale entries
+        // than wipe the widget.
+        var cli = new RecordingCli
+        {
+            RecentsReply = DefensiveRecentsInput,
+            FilesReply = Array.Empty<string>(),
+        };
+        var store = new InMemoryStateStore();
+        var provider = MakeProvider(cli, store);
+
+        const string id = "recents-files-empty";
+        provider.RegisterActiveForTest(id, WidgetIdentifiers.RecentNotesWidgetId);
+
+        await provider.RefreshRecentNotesAsync(id);
+
+        var state = store.Get(id);
+        Assert.Equal(DefensiveRecentsInput, state.RecentNotes);
+    }
+
+    [Fact]
+    public async Task Refresh_BothEmpty_StateEmpty()
+    {
+        var cli = new RecordingCli
+        {
+            RecentsReply = Array.Empty<string>(),
+            FilesReply = Array.Empty<string>(),
+        };
+        var store = new InMemoryStateStore();
+        var provider = MakeProvider(cli, store);
+
+        const string id = "recents-both-empty";
+        provider.RegisterActiveForTest(id, WidgetIdentifiers.RecentNotesWidgetId);
+
+        await provider.RefreshRecentNotesAsync(id);
+
+        var state = store.Get(id);
+        Assert.Empty(state.RecentNotes);
+    }
+
+    [Fact]
+    public async Task Refresh_AllRecentsAreGhosts_StateEmpty()
+    {
+        var cli = new RecordingCli
+        {
+            RecentsReply = AllGhostRecentsInput,
+            FilesReply = AllGhostFilesInput,
+        };
+        var store = new InMemoryStateStore();
+        var provider = MakeProvider(cli, store);
+
+        const string id = "recents-all-ghost";
+        provider.RegisterActiveForTest(id, WidgetIdentifiers.RecentNotesWidgetId);
+
+        await provider.RefreshRecentNotesAsync(id);
+
+        var state = store.Get(id);
+        Assert.Empty(state.RecentNotes);
     }
 
     // ── QuickNote invariant ───────────────────────────────────────────────
