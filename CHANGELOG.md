@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0.2] - 2026-04-19
+
+### Changed
+- Folder picker reverted from `expanded` back to `compact` `ChoiceSet.Input` on medium + large templates (the v2 `expanded` bullet was claimed but not shipped; this release makes the docs match reality).
+
+### Added
+- New `folderNew` `Input.Text` on medium + large QuickNote templates — type a new folder name to override the `folder` dropdown selection when creating a note.
+
+### Fixed
+- Manifest `Identity/@Version` bumped `1.0.0.1` → `1.0.0.2` so Widget Host picks up the template changes on reinstall.
+
+## [1.0.0.1] - 2026-04-19
+
 ### Fixed
 - CLI exit-code success detection — now parses `Created:` / `Overwrote:` / `Added to:` / `Error:` prefixes on stdout (audit `cli-probe`).
 - `CreateNoteAsync` now returns the CLI-reported path, honoring auto-rename on collision (audit `cli-probe`).
@@ -15,7 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fire-and-forget handlers now catch, log, and surface `LastError` to state (bug-hunter B3).
 - `IsComServerMode` now correctly returns true only on `-Embedding`/`/Embedding` (widget-plumber).
 - Card templates downgraded to Adaptive Cards 1.5; `widgetId` threaded into every action data block (card-author).
-- Folder ChoiceSet switched from `compact` to `expanded` on medium+large so "type new or pick" works.
 - `<AdditionalTasks/>` added to both Definitions; manifest bumped to 1.0.0.1 (manifest-surgeon).
 - Orphan `WidgetsDefinition.xml` deleted (doc-scribe, code-archaeologist).
 

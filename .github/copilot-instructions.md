@@ -62,6 +62,24 @@ Four projects in `ObsidianQuickNoteWidget.slnx`:
 - Data JSON is built by `CardDataBuilder.BuildQuickNoteData(state, showAdvanced)`. If you add a new `${$root.whatever}` binding in a template, add the field to the `JsonObject` there too.
 - Cards use AC Templating (`$data`, `$when`, `$root`) — this is evaluated by the Widget Host's renderer before display, not by us.
 
+#### Card input ids ↔ `CardDataBuilder` fields
+
+Every `Input.*` `id` in the QuickNote templates is both (a) read on action-submit as `action.Data[id]` by `ObsidianWidgetProvider`, and (b) re-echoed on the next render via `${$root.inputs.<id>}` so the user's in-flight value survives card refreshes. **Every `${$root.inputs.<id>}` binding in a template must have a matching entry in `CardDataBuilder.BuildQuickNoteData`'s `inputs` object**; missing an entry silently blanks that field on every re-render (the N13 lost-input bug).
+
+| Template id | Kind | Present in | Echoed by `CardDataBuilder.inputs["<id>"]` |
+| --- | --- | --- | --- |
+| `title` | `Input.Text` | small, medium, large | `""` (cleared after create) |
+| `folder` | `Input.ChoiceSet` (compact) | medium, large | `s.LastFolder ?? ""` |
+| `folderNew` | `Input.Text` (override — typed value wins over `folder` dropdown) | medium, large | **must** be populated (e.g. `""`) — missing this entry is the canonical N13 lost-input repro |
+| `body` | `Input.Text` (multiline) | medium, large | `""` |
+| `tagsCsv` | `Input.Text` | large | `s.TagsCsv ?? ""` |
+| `template` | `Input.ChoiceSet` (compact) | large | `s.Template ?? "Blank"` |
+| `autoDatePrefix` | `Input.Toggle` | large | `s.AutoDatePrefix ? "true" : "false"` |
+| `openAfterCreate` | `Input.Toggle` | large | `s.OpenAfterCreate ? "true" : "false"` |
+| `appendToDaily` | `Input.Toggle` | large | `s.AppendToDaily ? "true" : "false"` |
+
+Action-data bindings (not `Input.*`): `widgetId` is spliced into every `Action.Submit.data` block as `"${widgetId}"` and comes from the top-level `widgetId` field set by `CardDataBuilder`. Verb routing is `data.verb` (`createNote`, `pasteClipboard`, `toggleAdvanced`, `openRecent`, …).
+
 ## Key conventions
 
 - **IDs are hard-coded and must stay in sync across four places**: CLSID in `WidgetIdentifiers.ProviderClsid`, `Package.appxmanifest` (`com:Class Id=` and `CreateInstance ClassId=`), and the widget definition IDs (`WidgetIdentifiers.QuickNoteWidgetId` / `RecentNotesWidgetId`) match `<Definition Id=...>` in the manifest.

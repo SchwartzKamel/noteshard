@@ -18,9 +18,11 @@ Each size is a distinct Adaptive Card template (`QuickNote.{small,medium,large}.
 | Size | Surface |
 | --- | --- |
 | **Small** | Title field + Create button. |
-| **Medium** | Title + folder dropdown + body + Paste / Create buttons. |
-| **Large** | Full form: title, folder, body, tags, template picker (Daily / Meeting / Book / Idea), and toggles for auto-date prefix / open-after-create / append-to-daily. |
+| **Medium** | Title + folder dropdown + *new-folder* text input + body + Paste / Create buttons. |
+| **Large** | Full form: title, folder dropdown + *new-folder* text input, body, tags, template picker (Daily / Meeting / Book / Idea), and toggles for auto-date prefix / open-after-create / append-to-daily. |
 | **Recent Notes** (separate widget) | Standalone pinnable Adaptive Card listing the most recently created notes; tap to open in Obsidian. |
+
+On medium and large, the folder dropdown (compact `ChoiceSet.Input`, id `folder`) lists the vault's existing folders. Typing a name into the adjacent *new folder* text input (id `folderNew`) overrides the dropdown selection for that create — use it to drop a note into a folder that doesn't exist yet (or isn't in the cache). Leave `folderNew` blank to use the dropdown pick.
 
 The folder list is cached and auto-refreshed every 2 minutes (and after every successful create).
 
