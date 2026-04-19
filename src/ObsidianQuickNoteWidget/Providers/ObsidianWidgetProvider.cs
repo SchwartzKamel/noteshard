@@ -248,7 +248,10 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
             var state = _store.Get(session.Id);
 
             var title = inputs.GetValueOrDefault("title") ?? string.Empty;
-            var folder = inputs.GetValueOrDefault("folder") ?? state.LastFolder;
+            var folderNew = inputs.GetValueOrDefault("folderNew")?.Trim();
+            var folder = !string.IsNullOrEmpty(folderNew)
+                ? folderNew
+                : inputs.GetValueOrDefault("folder") ?? state.LastFolder;
             var body = inputs.GetValueOrDefault("body") ?? string.Empty;
             var tagsCsv = inputs.GetValueOrDefault("tagsCsv") ?? state.TagsCsv;
             var template = inputs.GetValueOrDefault("template") ?? state.Template;

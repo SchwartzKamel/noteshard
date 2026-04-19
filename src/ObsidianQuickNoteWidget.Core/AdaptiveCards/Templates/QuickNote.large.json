@@ -16,8 +16,8 @@
       "type": "Input.ChoiceSet",
       "id": "folder",
       "label": "Folder",
-      "placeholder": "Type or pick",
-      "style": "expanded",
+      "placeholder": "Pick folder",
+      "style": "compact",
       "isMultiSelect": false,
       "value": "${$root.inputs.folder}",
       "choices": [
@@ -27,6 +27,13 @@
           "value": "${value}"
         }
       ]
+    },
+    {
+      "type": "Input.Text",
+      "id": "folderNew",
+      "label": "New folder",
+      "placeholder": "Optional — overrides picker above",
+      "value": "${$root.inputs.folderNew}"
     },
     {
       "type": "Input.Text",

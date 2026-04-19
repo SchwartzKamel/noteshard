@@ -16,7 +16,7 @@ public class CardTemplatesTests
     // from the template source so that a mutation swapping size→template
     // routing is guaranteed to fail.
     private const string SmallOnlyMarker = "Quick note title";          // small placeholder
-    private const string MediumOnlyMarker = "Folder (type new or pick)"; // medium placeholder
+    private const string MediumOnlyMarker = "…or type new folder (optional)"; // medium folderNew placeholder
     private const string LargeOnlyMarker = "toggleAdvanced";             // large-only verb
     private const string RecentsOnlyMarker = "openVault";                // RecentNotes-only verb
 
