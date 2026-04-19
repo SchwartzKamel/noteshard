@@ -10,6 +10,9 @@ public static class CardTemplates
     public const string LargeTemplate = "QuickNote.large.json";
     public const string RecentNotesTemplate = "RecentNotes.json";
     public const string CliMissingTemplate = "CliMissing.json";
+    public const string PluginRunnerSmallTemplate = "PluginRunner.small.json";
+    public const string PluginRunnerMediumTemplate = "PluginRunner.medium.json";
+    public const string PluginRunnerLargeTemplate = "PluginRunner.large.json";
 
     public static string Load(string name)
     {
@@ -29,5 +32,17 @@ public static class CardTemplates
         "small" => Load(SmallTemplate),
         "large" => Load(LargeTemplate),
         _ => Load(MediumTemplate),
+    };
+
+    /// <summary>
+    /// Loads the Plugin Runner template for the given density. Centralised here
+    /// so callers never have to hard-code the (definitionId, size) → resource
+    /// mapping.
+    /// </summary>
+    public static string LoadPluginRunner(WidgetSize size) => size switch
+    {
+        WidgetSize.Small => Load(PluginRunnerSmallTemplate),
+        WidgetSize.Large => Load(PluginRunnerLargeTemplate),
+        _ => Load(PluginRunnerMediumTemplate),
     };
 }

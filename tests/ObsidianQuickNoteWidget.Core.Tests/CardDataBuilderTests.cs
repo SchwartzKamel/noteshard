@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ObsidianQuickNoteWidget.Core.AdaptiveCards;
+using ObsidianQuickNoteWidget.Core.Models;
 using ObsidianQuickNoteWidget.Core.State;
 using Xunit;
 
@@ -227,6 +228,164 @@ public class CardDataBuilderTests
         using var doc = JsonDocument.Parse(json);
         Assert.Equal(string.Empty, doc.RootElement.GetProperty("detail").GetString());
         Assert.False(doc.RootElement.GetProperty("hasDetail").GetBoolean());
+    }
+
+    // ── BuildPluginRunnerData ────────────────────────────────────────────
+
+    private static RunnerAction A(string label, string cmd = "cmd") =>
+        new(Guid.NewGuid(), label, cmd);
+
+    [Theory]
+    [InlineData(WidgetSize.Small, 2, 2, 0)]
+    [InlineData(WidgetSize.Medium, 4, 2, 2)]
+    [InlineData(WidgetSize.Large, 6, 3, 3)]
+    public void PluginRunnerData_SlotCaps_RespectedPerDensity(
+        WidgetSize size, int expectedCap, int expectedRow0, int expectedRow1)
+    {
+        // Build 10 catalog entries — far more than any cap.
+        var catalog = Enumerable.Range(0, 10).Select(i => A($"a{i}")).ToList();
+        var s = new WidgetState { WidgetId = "w" };
+
+        var json = CardDataBuilder.BuildPluginRunnerData(s, catalog, size);
+        using var doc = JsonDocument.Parse(json);
+
+        var actions = doc.RootElement.GetProperty("actions").EnumerateArray().ToList();
+        Assert.Equal(expectedCap, actions.Count);
+
+        var row0 = doc.RootElement.GetProperty("row0").EnumerateArray().ToList();
+        var row1 = doc.RootElement.GetProperty("row1").EnumerateArray().ToList();
+        Assert.Equal(expectedRow0, row0.Count);
+        Assert.Equal(expectedRow1, row1.Count);
+
+        Assert.Equal(10 - expectedCap, doc.RootElement.GetProperty("more").GetInt32());
+        Assert.True(doc.RootElement.GetProperty("hasMore").GetBoolean());
+        Assert.True(doc.RootElement.GetProperty("hasActions").GetBoolean());
+        Assert.False(doc.RootElement.GetProperty("isEmpty").GetBoolean());
+    }
+
+    [Fact]
+    public void PluginRunnerData_EmptyCatalog_EmitsIsEmptyAndZeroArrays()
+    {
+        var s = new WidgetState { WidgetId = "w" };
+        var json = CardDataBuilder.BuildPluginRunnerData(s, Array.Empty<RunnerAction>(), WidgetSize.Medium);
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Empty(doc.RootElement.GetProperty("actions").EnumerateArray());
+        Assert.Empty(doc.RootElement.GetProperty("row0").EnumerateArray());
+        Assert.Empty(doc.RootElement.GetProperty("row1").EnumerateArray());
+        Assert.Equal(0, doc.RootElement.GetProperty("more").GetInt32());
+        Assert.False(doc.RootElement.GetProperty("hasActions").GetBoolean());
+        Assert.False(doc.RootElement.GetProperty("hasMore").GetBoolean());
+        Assert.False(doc.RootElement.GetProperty("hasRow1").GetBoolean());
+        Assert.True(doc.RootElement.GetProperty("isEmpty").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, doc.RootElement.GetProperty("inputs").ValueKind);
+    }
+
+    [Fact]
+    public void PluginRunnerData_MoreCount_AccurateWhenCatalogUnderCap()
+    {
+        var catalog = new[] { A("one") };
+        var s = new WidgetState { WidgetId = "w" };
+
+        var json = CardDataBuilder.BuildPluginRunnerData(s, catalog, WidgetSize.Large);
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Single(doc.RootElement.GetProperty("actions").EnumerateArray());
+        Assert.Equal(0, doc.RootElement.GetProperty("more").GetInt32());
+        Assert.False(doc.RootElement.GetProperty("hasMore").GetBoolean());
+    }
+
+    [Fact]
+    public void PluginRunnerData_PinnedActionIds_FiltersAndPreservesPinOrder()
+    {
+        var a1 = A("alpha");
+        var a2 = A("beta");
+        var a3 = A("gamma");
+        var a4 = A("delta");
+        var catalog = new[] { a1, a2, a3, a4 };
+
+        // Deliberately reverse order + skip one (a2).
+        var s = new WidgetState
+        {
+            WidgetId = "w",
+            PinnedActionIds = new List<Guid> { a4.Id, a1.Id, a3.Id },
+        };
+
+        var json = CardDataBuilder.BuildPluginRunnerData(s, catalog, WidgetSize.Large);
+        using var doc = JsonDocument.Parse(json);
+
+        var labels = doc.RootElement.GetProperty("actions").EnumerateArray()
+            .Select(e => e.GetProperty("label").GetString())
+            .ToArray();
+        string[] expected = ["delta", "alpha", "gamma"];
+        Assert.Equal(expected, labels);
+    }
+
+    [Fact]
+    public void PluginRunnerData_PinnedIncludesUnknownId_SkipsUnknownSilently()
+    {
+        var a1 = A("one");
+        var s = new WidgetState
+        {
+            WidgetId = "w",
+            PinnedActionIds = new List<Guid> { Guid.NewGuid(), a1.Id },
+        };
+
+        var json = CardDataBuilder.BuildPluginRunnerData(s, new[] { a1 }, WidgetSize.Small);
+        using var doc = JsonDocument.Parse(json);
+
+        var labels = doc.RootElement.GetProperty("actions").EnumerateArray()
+            .Select(e => e.GetProperty("label").GetString())
+            .ToArray();
+        string[] expected = ["one"];
+        Assert.Equal(expected, labels);
+    }
+
+    [Fact]
+    public void PluginRunnerData_UnpinnedState_ShowsAllCatalogUpToCap()
+    {
+        var catalog = Enumerable.Range(0, 5).Select(i => A($"x{i}")).ToList();
+        var s = new WidgetState { WidgetId = "w" }; // no pins
+
+        var json = CardDataBuilder.BuildPluginRunnerData(s, catalog, WidgetSize.Medium);
+        using var doc = JsonDocument.Parse(json);
+
+        // cap=4 from medium → all 4 visible, 1 extra reported.
+        Assert.Equal(4, doc.RootElement.GetProperty("actions").EnumerateArray().Count());
+        Assert.Equal(1, doc.RootElement.GetProperty("more").GetInt32());
+    }
+
+    [Fact]
+    public void PluginRunnerData_ActionJson_Shape()
+    {
+        var a = new RunnerAction(Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            "Label", "workspace:new-tab");
+        var s = new WidgetState { WidgetId = "wid-1" };
+
+        var json = CardDataBuilder.BuildPluginRunnerData(s, new[] { a }, WidgetSize.Small);
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Equal("wid-1", doc.RootElement.GetProperty("widgetId").GetString());
+        var item = doc.RootElement.GetProperty("actions")[0];
+        Assert.Equal(a.Id.ToString(), item.GetProperty("id").GetString());
+        Assert.Equal("Label", item.GetProperty("label").GetString());
+        Assert.Equal("workspace:new-tab", item.GetProperty("commandId").GetString());
+        Assert.Equal("none", item.GetProperty("lastResult").GetString());
+    }
+
+    [Fact]
+    public void PluginRunnerData_Small_NeverPopulatesRow1()
+    {
+        var catalog = Enumerable.Range(0, 4).Select(i => A($"x{i}")).ToList();
+        var s = new WidgetState { WidgetId = "w" };
+
+        var json = CardDataBuilder.BuildPluginRunnerData(s, catalog, WidgetSize.Small);
+        using var doc = JsonDocument.Parse(json);
+
+        // cap=2, cols=2 → both go to row0, row1 empty.
+        Assert.Equal(2, doc.RootElement.GetProperty("row0").EnumerateArray().Count());
+        Assert.Empty(doc.RootElement.GetProperty("row1").EnumerateArray());
+        Assert.False(doc.RootElement.GetProperty("hasRow1").GetBoolean());
     }
 }
 

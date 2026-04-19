@@ -1,0 +1,167 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "ColumnSet",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "stretch",
+          "verticalContentAlignment": "Center",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "Obsidian Actions",
+              "weight": "Bolder",
+              "size": "Medium",
+              "wrap": false
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "auto",
+          "verticalContentAlignment": "Center",
+          "items": [
+            {
+              "type": "ActionSet",
+              "actions": [
+                {
+                  "type": "Action.Execute",
+                  "title": "⚙",
+                  "verb": "openCustomize",
+                  "data": { "widgetId": "${widgetId}", "verb": "openCustomize" }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "isVisible": "${isEmpty}",
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "No actions yet. Tap ⚙ to add one.",
+          "wrap": true,
+          "horizontalAlignment": "Center",
+          "isSubtle": true
+        },
+        {
+          "type": "ActionSet",
+          "horizontalAlignment": "Center",
+          "actions": [
+            {
+              "type": "Action.Execute",
+              "title": "+ Add action",
+              "verb": "openCustomize",
+              "style": "positive",
+              "data": { "widgetId": "${widgetId}", "verb": "openCustomize" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ColumnSet",
+      "isVisible": "${hasActions}",
+      "spacing": "Small",
+      "columns": [
+        {
+          "$data": "${$root.row0}",
+          "type": "Column",
+          "width": "stretch",
+          "style": "emphasis",
+          "spacing": "Small",
+          "selectAction": {
+            "type": "Action.Execute",
+            "verb": "runAction",
+            "data": {
+              "widgetId": "${$root.widgetId}",
+              "verb": "runAction",
+              "actionId": "${id}"
+            }
+          },
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${label}",
+              "weight": "Bolder",
+              "wrap": true,
+              "maxLines": 2
+            },
+            {
+              "type": "TextBlock",
+              "text": "✓",
+              "color": "Good",
+              "size": "Small",
+              "spacing": "None",
+              "isVisible": "${if(lastResult == 'ok', true, false)}"
+            },
+            {
+              "type": "TextBlock",
+              "text": "!",
+              "color": "Attention",
+              "size": "Small",
+              "spacing": "None",
+              "isVisible": "${if(lastResult == 'error', true, false)}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ColumnSet",
+      "isVisible": "${hasRow1}",
+      "spacing": "Small",
+      "columns": [
+        {
+          "$data": "${$root.row1}",
+          "type": "Column",
+          "width": "stretch",
+          "style": "emphasis",
+          "spacing": "Small",
+          "selectAction": {
+            "type": "Action.Execute",
+            "verb": "runAction",
+            "data": {
+              "widgetId": "${$root.widgetId}",
+              "verb": "runAction",
+              "actionId": "${id}"
+            }
+          },
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${label}",
+              "weight": "Bolder",
+              "wrap": true,
+              "maxLines": 2
+            },
+            {
+              "type": "TextBlock",
+              "text": "✓",
+              "color": "Good",
+              "size": "Small",
+              "spacing": "None",
+              "isVisible": "${if(lastResult == 'ok', true, false)}"
+            },
+            {
+              "type": "TextBlock",
+              "text": "!",
+              "color": "Attention",
+              "size": "Small",
+              "spacing": "None",
+              "isVisible": "${if(lastResult == 'error', true, false)}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

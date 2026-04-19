@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ObsidianQuickNoteWidget.Core.Models;
 using ObsidianQuickNoteWidget.Core.State;
 
 namespace ObsidianQuickNoteWidget.Core.AdaptiveCards;
@@ -55,6 +56,100 @@ public static class CardDataBuilder
         };
         return root.ToJsonString();
     }
+
+    /// <summary>
+    /// Builds the data payload for the Plugin Runner card. Shape contract:
+    /// <code>
+    /// {
+    ///   "widgetId": "&lt;guid&gt;",
+    ///   "actions":  [ { id, label, commandId, lastResult } , ... ],  // capped to size slots
+    ///   "row0":     [ ... ],   // first grid row
+    ///   "row1":     [ ... ],   // second grid row (medium/large only — [] for small)
+    ///   "more":     0,         // catalog entries beyond the cap
+    ///   "hasMore":  false,
+    ///   "hasActions": true,
+    ///   "hasRow1":  false,
+    ///   "isEmpty":  false,
+    ///   "inputs":   {}
+    /// }
+    /// </code>
+    /// Filtering rules:
+    /// <list type="bullet">
+    ///   <item>If <see cref="WidgetState.PinnedActionIds"/> is empty, all catalog
+    ///         entries are shown (up to the density's slot cap).</item>
+    ///   <item>If populated, only pinned ids are shown, in pin order. Missing
+    ///         catalog entries are skipped silently.</item>
+    /// </list>
+    /// </summary>
+    public static string BuildPluginRunnerData(
+        WidgetState state,
+        IReadOnlyList<RunnerAction> catalog,
+        WidgetSize size)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        var (cap, cols) = size switch
+        {
+            WidgetSize.Small => (2, 2),
+            WidgetSize.Large => (6, 3),
+            _ => (4, 2),
+        };
+
+        var filtered = FilterAndOrderActions(catalog, state.PinnedActionIds);
+        var visible = filtered.Take(cap).ToList();
+        var more = Math.Max(0, filtered.Count - cap);
+
+        var actions = new JsonArray();
+        foreach (var a in visible) actions.Add(ActionToJson(a));
+
+        var row0 = new JsonArray();
+        var row1 = new JsonArray();
+        for (var i = 0; i < visible.Count; i++)
+        {
+            var node = ActionToJson(visible[i]);
+            if (i < cols) row0.Add(node);
+            else row1.Add(node);
+        }
+
+        var root = new JsonObject
+        {
+            ["widgetId"] = state.WidgetId ?? string.Empty,
+            ["actions"] = actions,
+            ["row0"] = row0,
+            ["row1"] = row1,
+            ["more"] = more,
+            ["hasMore"] = more > 0,
+            ["hasActions"] = visible.Count > 0,
+            ["hasRow1"] = row1.Count > 0,
+            ["isEmpty"] = visible.Count == 0,
+            ["inputs"] = new JsonObject(),
+        };
+
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+    }
+
+    private static List<RunnerAction> FilterAndOrderActions(
+        IReadOnlyList<RunnerAction> catalog, List<Guid> pinnedIds)
+    {
+        if (pinnedIds is null || pinnedIds.Count == 0)
+            return catalog.ToList();
+
+        var byId = catalog.ToDictionary(a => a.Id);
+        var result = new List<RunnerAction>(pinnedIds.Count);
+        foreach (var id in pinnedIds)
+            if (byId.TryGetValue(id, out var a))
+                result.Add(a);
+        return result;
+    }
+
+    private static JsonObject ActionToJson(RunnerAction a) => new()
+    {
+        ["id"] = a.Id.ToString(),
+        ["label"] = a.Label ?? string.Empty,
+        ["commandId"] = a.CommandId ?? string.Empty,
+        ["lastResult"] = "none",
+    };
 
     private static JsonArray BuildFolderChoices(WidgetState s)
     {

@@ -20,4 +20,12 @@ public sealed class WidgetState
     public string? LastStatus { get; set; }
     public string? LastError { get; set; }
     public string? LastCreatedPath { get; set; }
+
+    /// <summary>
+    /// Ordered list of <see cref="Models.RunnerAction"/> ids that the user has
+    /// pinned to the Plugin Runner widget surface. Empty => show all catalog
+    /// actions (up to the size's slot cap). When populated, the runner card
+    /// filters to and preserves this order.
+    /// </summary>
+    public List<Guid> PinnedActionIds { get; set; } = new();
 }
