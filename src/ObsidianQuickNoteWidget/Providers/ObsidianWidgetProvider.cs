@@ -23,6 +23,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     private readonly ILog _log;
     private readonly IStateStore _store;
     private readonly IObsidianCli _cli;
+    private readonly IObsidianLauncher _launcher;
     private readonly NoteCreationService _notes;
     private readonly PluginRunnerHandler _pluginRunner;
     private readonly ConcurrentDictionary<string, WidgetSession> _active = new();
@@ -43,17 +44,19 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     internal static readonly TimeSpan RecentNotesCacheTtl = TimeSpan.FromSeconds(30);
 
     public ObsidianWidgetProvider()
-        : this(new FileLog(), new JsonStateStore(), null, null) { }
+        : this(new FileLog(), new JsonStateStore(), null, null, null) { }
 
     internal ObsidianWidgetProvider(
         ILog log,
         IStateStore store,
         IObsidianCli? cli,
-        IActionCatalogStore? catalog = null)
+        IActionCatalogStore? catalog = null,
+        IObsidianLauncher? launcher = null)
     {
         _log = log;
         _store = store;
         _cli = cli ?? new ObsidianCli(log);
+        _launcher = launcher ?? new ObsidianLauncher(log);
         _notes = new NoteCreationService(_cli, log);
         var invoker = new ObsidianCommandInvoker(_cli, log);
         _pluginRunner = new PluginRunnerHandler(
@@ -158,6 +161,16 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     // InternalsVisibleTo to the test assembly.
     internal void RegisterActiveForTest(string widgetId, string definitionId)
         => _active[widgetId] = new WidgetSession(widgetId, definitionId, _store.Get(widgetId).Size);
+
+    // Test-only hook to exercise the verb dispatcher without going through
+    // the COM OnActionInvoked entry point (which requires a real
+    // WidgetActionInvokedArgs). Creates a session ad-hoc if the widget isn't
+    // already registered.
+    internal Task InvokeVerbForTest(string widgetId, string verb, string? data)
+    {
+        var session = _active.GetOrAdd(widgetId, _ => new WidgetSession(widgetId, string.Empty, _store.Get(widgetId).Size));
+        return HandleVerbAsync(session, verb, data);
+    }
 
     // ---- IWidgetProvider2 ----
 
@@ -273,13 +286,10 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
                 await HandleOpenRecentAsync(session, data).ConfigureAwait(false);
                 break;
             case "openVault":
-                if (_cli.IsAvailable)
-                {
-                    await AsyncSafe.RunAsync(
-                        () => _cli.OpenNoteAsync(string.Empty),
-                        _log,
-                        $"[{session.Id}] openVault").ConfigureAwait(false);
-                }
+                await AsyncSafe.RunAsync(
+                    () => _launcher.LaunchVaultAsync(),
+                    _log,
+                    $"[{session.Id}] openVault").ConfigureAwait(false);
                 break;
             default:
                 _log.Warn($"Unknown verb: {verb}");
@@ -391,15 +401,21 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
 
     private async Task HandleOpenRecentAsync(WidgetSession session, string? data)
     {
-        if (!_cli.IsAvailable) return;
         try
         {
             using var doc = JsonDocument.Parse(data ?? "{}");
             if (doc.RootElement.TryGetProperty("path", out var p))
             {
                 var path = p.GetString();
-                if (!string.IsNullOrEmpty(path))
-                    await _cli.OpenNoteAsync(path!).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    _log.Warn($"[{session.Id}] openRecent: missing or empty path");
+                    return;
+                }
+                // URI scheme launches Obsidian regardless of whether it's
+                // already running, unlike the bundled CLI (which requires a
+                // running instance).
+                await _launcher.LaunchNoteAsync(path!).ConfigureAwait(false);
             }
         }
         catch (Exception ex) { _log.Warn("openRecent parse failed: " + ex.Message); }

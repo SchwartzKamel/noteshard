@@ -213,13 +213,12 @@ public sealed class ObsidianCli : IObsidianCli
 
     public async Task<bool> OpenNoteAsync(string vaultRelativePath, CancellationToken ct = default)
     {
-        // The Obsidian CLI has no verb for "open the vault itself" — `vault` is
-        // an info query (TSV output), not a UI-focus command. Surface empty-path
-        // calls as an explicit no-op so callers can't accidentally trigger the
-        // info query thinking it opens something.
+        // Precondition: a valid vault-relative path. Callers that want to
+        // launch Obsidian itself should use IObsidianLauncher (URI scheme);
+        // this CLI method only opens specific notes and requires Obsidian
+        // to already be running.
         if (string.IsNullOrWhiteSpace(vaultRelativePath))
         {
-            _log.Warn("OpenNoteAsync called with empty path; Obsidian CLI has no 'open vault' verb.");
             return false;
         }
 
