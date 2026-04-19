@@ -11,7 +11,7 @@
 
   <Identity Name="ObsidianQuickNoteWidget"
             Publisher="CN=ObsidianQuickNoteWidgetDev"
-            Version="1.0.0.7" />
+            Version="1.0.0.8" />
 
   <Properties>
     <DisplayName>Obsidian Quick Note Widget</DisplayName>

@@ -15,18 +15,6 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        // Proof-of-life: write directly to a hard-coded path (bypassing package
-        // redirection) so we can confirm Widget Host actually launched us.
-        try
-        {
-            var probePath = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "ObsidianWidget-proof.log");
-            System.IO.File.AppendAllText(probePath,
-                $"{DateTime.Now:o} pid={Environment.ProcessId} args=[{string.Join(' ', args)}]{Environment.NewLine}");
-        }
-        catch { /* best-effort */ }
-
         var log = new FileLog();
         try
         {

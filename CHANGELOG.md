@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0.8] - 2026-04-19
+
+### Security
+- **F-04** (MED) — `FolderPathValidator` now rejects leading-dot segments (e.g. `.obsidian`, `.git`, `.trash`), closing the write-into-config-tree vector opened by the `folderNew` free-text input.
+- **F-05** (LOW) — Removed the `%UserProfile%\ObsidianWidget-proof.log` proof-of-life writer from `Program.Main`. Widget activation is covered by the structured `FileLog` under `%LocalAppData%`.
+- **F-06** (LOW) — `JsonStateStore.Load` now caps `state.json` at 1 MB. Oversized files are quarantined as `state.json.oversized.<yyyyMMddHHmmss>` and the store degrades to empty state.
+- **F-07** (LOW) — `JsonStateStore.Load`/`Persist` replaced bare `catch` with scoped handlers (`JsonException`/`IOException`/`UnauthorizedAccessException`) that log via `FileLog`. Corrupt state is quarantined as `state.json.corrupt.<yyyyMMddHHmmss>` for user recovery.
+- **F-08** (LOW) — `%LocalAppData%\ObsidianQuickNoteWidget\` is now created with inheritance disabled and owner-only `FullControl` via new `DirectorySecurityHelper.CreateWithOwnerOnlyAcl`. Called from both `FileLog` and `JsonStateStore` constructors; idempotent per process, best-effort on failure.
+- **F-12** (LOW) — `OBSIDIAN_CLI` override now rejects UNC / device-namespace paths (`\\server\share`, `\\?\...`, `\\.\...`), relative paths, and reparse-point targets (symlink / directory junction). Rejection logs a one-shot sanitized warning and falls through to the next resolver.
+- **F-16** (LOW) — `FolderPathValidator` now rejects C0 control characters (`\0`, `\r`, `\n`, `\t`, `\x01`..`\x1F`, `\x7F`) per segment; error messages pass through `FileLog.SanitizeForLogLine` so rejected payloads can't re-introduce log injection.
+
+### Added
+- `ObsidianQuickNoteWidget.Core.IO.DirectorySecurityHelper` (internal) — creates user-scoped data directories with tightened Windows ACLs.
+
 ## [1.0.0.7] - 2026-04-19
 
 ### Fixed

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using ObsidianQuickNoteWidget.Core.IO;
+using ObsidianQuickNoteWidget.Core.Logging;
 
 namespace ObsidianQuickNoteWidget.Core.State;
 
@@ -22,6 +24,10 @@ namespace ObsidianQuickNoteWidget.Core.State;
 /// </summary>
 public sealed class JsonStateStore : IStateStore
 {
+    // F-06: cap state.json at 1 MB. Anything larger is either corruption or a
+    // (future) DoS vector; rename with timestamp and degrade to empty state.
+    private const long MaxStateFileBytes = 1024 * 1024;
+
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         WriteIndented = true,
@@ -29,13 +35,16 @@ public sealed class JsonStateStore : IStateStore
     };
 
     private readonly string _path;
+    private readonly ILog _log;
     private readonly Lock _gate = new();
     private Dictionary<string, WidgetState> _cache;
 
-    public JsonStateStore(string? path = null)
+    public JsonStateStore(string? path = null, ILog? log = null)
     {
         _path = path ?? DefaultPath();
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+        _log = log ?? NullLog.Instance;
+        // F-08: create the state directory with owner-only ACLs on Windows.
+        DirectorySecurityHelper.CreateWithOwnerOnlyAcl(Path.GetDirectoryName(_path)!, _log);
         _cache = Load();
     }
 
@@ -77,13 +86,48 @@ public sealed class JsonStateStore : IStateStore
         try
         {
             if (!File.Exists(_path)) return new Dictionary<string, WidgetState>();
+
+            // F-06: size-guard before read. A pathologically large state file
+            // is quarantined (renamed) and treated as empty so the widget
+            // doesn't spend memory deserializing an attacker-planted blob.
+            var info = new FileInfo(_path);
+            if (info.Length > MaxStateFileBytes)
+            {
+                _log.Warn($"state file oversized ({info.Length} bytes > {MaxStateFileBytes}); quarantining");
+                QuarantineBadFile("oversized");
+                return new Dictionary<string, WidgetState>();
+            }
+
             var json = File.ReadAllText(_path);
             var parsed = JsonSerializer.Deserialize<Dictionary<string, WidgetState>>(json, JsonOpts);
             return parsed ?? new Dictionary<string, WidgetState>();
         }
-        catch
+        catch (JsonException ex)
         {
+            // F-07: corruption gets a sidecar copy so the user has a recovery
+            // path without blocking the widget from starting.
+            _log.Error("state load failed (corrupt json); quarantining", ex);
+            QuarantineBadFile("corrupt");
             return new Dictionary<string, WidgetState>();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Error("state load failed", ex);
+            return new Dictionary<string, WidgetState>();
+        }
+    }
+
+    private void QuarantineBadFile(string reason)
+    {
+        try
+        {
+            var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            var dest = $"{_path}.{reason}.{stamp}";
+            File.Move(_path, dest, overwrite: false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Warn($"state quarantine failed: {FileLog.SanitizeForLogLine(ex.Message)}");
         }
     }
 
@@ -96,9 +140,12 @@ public sealed class JsonStateStore : IStateStore
             File.WriteAllText(tmp, json);
             File.Move(tmp, _path, overwrite: true);
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            // best effort; widget must never crash over state persistence
+            // Best-effort: widget must never crash over state persistence.
+            // Log-only (no rename) — transient IO errors shouldn't trash the
+            // on-disk file.
+            _log.Error("state persist failed", ex);
         }
     }
 

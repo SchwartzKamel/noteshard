@@ -11,12 +11,15 @@ public class ObsidianCliResolutionTests
         public bool IsWindows { get; set; } = true;
         public Dictionary<string, string?> Vars { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, FileAttributes> Attrs { get; } = new(StringComparer.OrdinalIgnoreCase);
         public string? RegistryCommand { get; set; }
 
         public string? GetEnvironmentVariable(string name) =>
             Vars.TryGetValue(name, out var v) ? v : null;
         public bool FileExists(string path) =>
             !string.IsNullOrWhiteSpace(path) && Files.Contains(path);
+        public FileAttributes GetFileAttributes(string path) =>
+            Attrs.TryGetValue(path, out var a) ? a : FileAttributes.Normal;
         public string? GetObsidianProtocolOpenCommand() => RegistryCommand;
     }
 
@@ -154,6 +157,84 @@ public class ObsidianCliResolutionTests
         var resolved = ObsidianCli.ResolveExecutable(env, NullLog.Instance);
 
         Assert.Equal(@"C:\Program Files\Obsidian\Obsidian.exe", resolved);
+    }
+
+    // F-12: UNC override rejected; fall through to the next resolver.
+    [Theory]
+    [InlineData(@"\\attacker\share\obsidian.exe")]
+    [InlineData(@"\\?\C:\Obsidian\obsidian.exe")]
+    [InlineData(@"\\.\pipe\evil")]
+    [InlineData(@"//server/share/obsidian.exe")]
+    public void ObsidianCliResolution_RejectsUncOverride(string badOverride)
+    {
+        var env = new FakeEnv
+        {
+            Vars =
+            {
+                ["OBSIDIAN_CLI"] = badOverride,
+                ["ProgramFiles"] = @"C:\Program Files",
+            },
+        };
+        env.Files.Add(badOverride);
+        env.Files.Add(@"C:\Program Files\Obsidian\Obsidian.exe");
+
+        var log = new CapturingLog();
+        var resolved = ObsidianCli.ResolveExecutable(env, log);
+
+        Assert.Equal(@"C:\Program Files\Obsidian\Obsidian.exe", resolved);
+        Assert.Contains(log.Warnings, w =>
+            w.Contains("OBSIDIAN_CLI override rejected", StringComparison.Ordinal) &&
+            w.Contains("UNC", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // F-12: relative override rejected (resolver can't audit it safely).
+    [Fact]
+    public void ObsidianCliResolution_RejectsRelativeOverride()
+    {
+        var env = new FakeEnv
+        {
+            Vars =
+            {
+                ["OBSIDIAN_CLI"] = @"obsidian.exe",
+                ["ProgramFiles"] = @"C:\Program Files",
+            },
+        };
+        env.Files.Add("obsidian.exe");
+        env.Files.Add(@"C:\Program Files\Obsidian\Obsidian.exe");
+
+        var log = new CapturingLog();
+        var resolved = ObsidianCli.ResolveExecutable(env, log);
+
+        Assert.Equal(@"C:\Program Files\Obsidian\Obsidian.exe", resolved);
+        Assert.Contains(log.Warnings, w =>
+            w.Contains("OBSIDIAN_CLI override rejected", StringComparison.Ordinal) &&
+            w.Contains("not fully qualified", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // F-12: reparse-point (symlink / junction) override rejected.
+    [Fact]
+    public void ObsidianCliResolution_RejectsReparsePointOverride()
+    {
+        const string bad = @"D:\symlink\obsidian.exe";
+        var env = new FakeEnv
+        {
+            Vars =
+            {
+                ["OBSIDIAN_CLI"] = bad,
+                ["ProgramFiles"] = @"C:\Program Files",
+            },
+        };
+        env.Files.Add(bad);
+        env.Attrs[bad] = FileAttributes.ReparsePoint | FileAttributes.Archive;
+        env.Files.Add(@"C:\Program Files\Obsidian\Obsidian.exe");
+
+        var log = new CapturingLog();
+        var resolved = ObsidianCli.ResolveExecutable(env, log);
+
+        Assert.Equal(@"C:\Program Files\Obsidian\Obsidian.exe", resolved);
+        Assert.Contains(log.Warnings, w =>
+            w.Contains("OBSIDIAN_CLI override rejected", StringComparison.Ordinal) &&
+            w.Contains("reparse-point", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

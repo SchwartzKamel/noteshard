@@ -28,6 +28,7 @@ public sealed class ObsidianCli : IObsidianCli
     private static readonly string[] WindowsPathExtensions = [".com", ".exe"];
     private static readonly string[] UnixPathExtensions = [""];
     private static int s_warnedPathResolution;
+    private static int s_warnedOverrideRejected;
     private readonly string? _resolvedExe;
     private readonly ILog _log;
 
@@ -259,9 +260,23 @@ public sealed class ObsidianCli : IObsidianCli
     internal static string? ResolveExecutable(IObsidianCliEnvironment env, ILog log)
     {
         var overridePath = env.GetEnvironmentVariable("OBSIDIAN_CLI");
-        if (!string.IsNullOrWhiteSpace(overridePath) && env.FileExists(overridePath))
+        if (!string.IsNullOrWhiteSpace(overridePath))
         {
-            return overridePath;
+            var rejectReason = ValidateOverridePath(overridePath, env);
+            if (rejectReason is not null)
+            {
+                if (Interlocked.Exchange(ref s_warnedOverrideRejected, 1) == 0)
+                {
+                    log.Warn(
+                        $"OBSIDIAN_CLI override rejected: {rejectReason} " +
+                        $"path={Logging.FileLog.SanitizeForLogLine(overridePath)}");
+                }
+                // Fall through to the next resolver — do NOT accept the override.
+            }
+            else if (env.FileExists(overridePath))
+            {
+                return overridePath;
+            }
         }
 
         if (env.IsWindows)
@@ -303,6 +318,48 @@ public sealed class ObsidianCli : IObsidianCli
         return null;
     }
 
+    /// <summary>
+    /// F-12: validates an <c>OBSIDIAN_CLI</c> override for safety before it's
+    /// accepted as the resolved executable. Rejects relative paths (resolver
+    /// can't audit them), UNC / device-namespace paths (untrusted network or
+    /// attacker-configurable), and reparse-point targets (directory junction
+    /// or symlink — opens a redirect vector). Returns a human-readable reason
+    /// or null when the path is acceptable.
+    /// </summary>
+    internal static string? ValidateOverridePath(string path, IObsidianCliEnvironment env)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "empty";
+
+        // UNC / device-namespace check first: `\\server\share\...`, `\\?\...`,
+        // `\\.\...`. This also covers forward-slash `//server/share` which
+        // Path.IsPathFullyQualified accepts on Windows.
+        if (path.StartsWith(@"\\", StringComparison.Ordinal) ||
+            path.StartsWith("//", StringComparison.Ordinal))
+        {
+            return "UNC or device-namespace path";
+        }
+
+        if (!Path.IsPathFullyQualified(path))
+        {
+            return "not fully qualified";
+        }
+
+        if (!env.FileExists(path))
+        {
+            // Don't flag as rejection — fall through to existing
+            // FileExists gate which silently ignores.
+            return null;
+        }
+
+        var attrs = env.GetFileAttributes(path);
+        if (attrs.HasFlag(FileAttributes.ReparsePoint))
+        {
+            return "reparse-point target (symlink / junction)";
+        }
+
+        return null;
+    }
+
     private static IEnumerable<string> EnumerateKnownWindowsInstallPaths(IObsidianCliEnvironment env)
     {
         var programFiles = env.GetEnvironmentVariable("ProgramFiles");
@@ -339,5 +396,9 @@ public sealed class ObsidianCli : IObsidianCli
     }
 
     // Reset the one-shot PATH-resolution warning. Tests only.
-    internal static void ResetPathWarningForTests() => Interlocked.Exchange(ref s_warnedPathResolution, 0);
+    internal static void ResetPathWarningForTests()
+    {
+        Interlocked.Exchange(ref s_warnedPathResolution, 0);
+        Interlocked.Exchange(ref s_warnedOverrideRejected, 0);
+    }
 }

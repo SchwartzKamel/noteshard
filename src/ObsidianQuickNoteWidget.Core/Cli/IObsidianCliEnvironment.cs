@@ -11,6 +11,14 @@ internal interface IObsidianCliEnvironment
     bool FileExists(string path);
 
     /// <summary>
+    /// Returns file attributes for <paramref name="path"/>. Implementations
+    /// should return <see cref="FileAttributes.Normal"/> (or similar
+    /// non-reparse value) when unknown; returning a reparse-point flag for a
+    /// non-existent path is considered a fail-closed signal.
+    /// </summary>
+    FileAttributes GetFileAttributes(string path);
+
+    /// <summary>
     /// Returns the default value of <c>HKCU\Software\Classes\obsidian\shell\open\command</c>
     /// (the raw "&quot;C:\...\Obsidian.exe&quot; --protocol %1" string), or null if absent
     /// or inaccessible. Implementations on non-Windows platforms should return null.
@@ -24,6 +32,12 @@ internal sealed class DefaultObsidianCliEnvironment : IObsidianCliEnvironment
     public bool IsWindows => OperatingSystem.IsWindows();
     public string? GetEnvironmentVariable(string name) => Environment.GetEnvironmentVariable(name);
     public bool FileExists(string path) => !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+
+    public FileAttributes GetFileAttributes(string path)
+    {
+        try { return File.GetAttributes(path); }
+        catch { return FileAttributes.Normal; }
+    }
 
     public string? GetObsidianProtocolOpenCommand()
     {

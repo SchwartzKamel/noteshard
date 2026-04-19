@@ -1,3 +1,5 @@
+using ObsidianQuickNoteWidget.Core.Logging;
+
 namespace ObsidianQuickNoteWidget.Core.Notes;
 
 public sealed record FolderValidationResult(bool IsValid, string? NormalizedPath, string? Error)
@@ -40,20 +42,27 @@ public static class FolderPathValidator
             if (seg == "." || seg == "..")
                 return FolderValidationResult.Fail("Relative segments (./..) are not allowed");
 
+            // F-04: reject leading-dot segments (e.g. ".obsidian", ".git", ".trash")
+            // to keep notes out of Obsidian's own config tree and other hidden dirs.
+            // `.` and `..` are handled by the guard above so this only catches genuine
+            // hidden directory names.
+            if (seg.StartsWith('.'))
+                return FolderValidationResult.Fail($"Hidden folder segment '{FileLog.SanitizeForLogLine(seg)}' is not allowed");
+
             if (seg.IndexOfAny(IllegalSegmentChars) >= 0)
-                return FolderValidationResult.Fail($"Illegal character in folder segment '{seg}'");
+                return FolderValidationResult.Fail($"Illegal character in folder segment '{FileLog.SanitizeForLogLine(seg)}'");
 
             foreach (var c in seg)
             {
                 if (char.IsControl(c))
-                    return FolderValidationResult.Fail($"Control character in folder segment '{seg}'");
+                    return FolderValidationResult.Fail($"Control character in folder segment '{FileLog.SanitizeForLogLine(seg)}'");
             }
 
             if (FilenameSanitizer.IsReservedWindowsName(seg))
-                return FolderValidationResult.Fail($"Reserved Windows name '{seg}' cannot be used as a folder");
+                return FolderValidationResult.Fail($"Reserved Windows name '{FileLog.SanitizeForLogLine(seg)}' cannot be used as a folder");
 
             if (seg.EndsWith('.') || seg.EndsWith(' ') || seg.StartsWith(' '))
-                return FolderValidationResult.Fail($"Folder segment '{seg}' cannot start/end with space or end with '.'");
+                return FolderValidationResult.Fail($"Folder segment '{FileLog.SanitizeForLogLine(seg)}' cannot start/end with space or end with '.'");
         }
 
         return FolderValidationResult.Ok(string.Join('/', segments));

@@ -80,11 +80,10 @@ public class JsonStateStoreTests : IDisposable
     [InlineData("{")]
     [InlineData("not json at all")]
     [InlineData("[1,2,3]")]
-    [InlineData("")]
     public void Load_CorruptJson_ReturnsDefaultState(string bogus)
     {
         // Contract: the widget must never crash over a corrupt state file.
-        // JsonStateStore.Load swallows the exception and returns an empty
+        // JsonStateStore.Load catches JsonException and returns an empty
         // dictionary, so a subsequent Get returns default state.
         File.WriteAllText(_tmp, bogus);
         var s = new JsonStateStore(_tmp);
@@ -92,6 +91,58 @@ public class JsonStateStoreTests : IDisposable
         Assert.Equal("w1", state.WidgetId);
         Assert.Equal(string.Empty, state.LastFolder);
     }
+
+    // F-07: corrupt file gets sidecar-renamed so the user has a recovery path.
+    [Fact]
+    public void JsonStateStore_CorruptFile_RenamesAndReturnsEmpty()
+    {
+        File.WriteAllText(_tmp, "{not valid json");
+
+        var dir = Path.GetDirectoryName(_tmp)!;
+        var baseName = Path.GetFileName(_tmp);
+        var priorSidecars = Directory.GetFiles(dir, baseName + ".corrupt.*").Length;
+
+        var s = new JsonStateStore(_tmp);
+
+        var state = s.Get("w1");
+        Assert.Equal(string.Empty, state.LastFolder);
+        Assert.False(File.Exists(_tmp), "corrupt file should have been moved aside");
+        var sidecars = Directory.GetFiles(dir, baseName + ".corrupt.*");
+        Assert.True(sidecars.Length > priorSidecars, "sidecar .corrupt.<timestamp> should exist");
+
+        // Cleanup
+        foreach (var f in sidecars)
+        {
+            try { File.Delete(f); } catch { /* ignore */ }
+        }
+    }
+
+    // F-06: oversized file (>1MB) gets sidecar-renamed and store degrades to empty.
+    [Fact]
+    public void JsonStateStore_OversizedFile_RenamesAndReturnsEmpty()
+    {
+        // Fabricate a >1MB file; contents don't matter since we bail before parsing.
+        var big = new string('a', 1024 * 1024 + 16);
+        File.WriteAllText(_tmp, big);
+
+        var dir = Path.GetDirectoryName(_tmp)!;
+        var baseName = Path.GetFileName(_tmp);
+        var priorSidecars = Directory.GetFiles(dir, baseName + ".oversized.*").Length;
+
+        var s = new JsonStateStore(_tmp);
+        var state = s.Get("w1");
+        Assert.Equal(string.Empty, state.LastFolder);
+        Assert.False(File.Exists(_tmp));
+        var sidecars = Directory.GetFiles(dir, baseName + ".oversized.*");
+        Assert.True(sidecars.Length > priorSidecars, "sidecar .oversized.<timestamp> should exist");
+
+        foreach (var f in sidecars)
+        {
+            try { File.Delete(f); } catch { /* ignore */ }
+        }
+    }
+
+    // F-06: oversized file (>1MB) gets sidecar-renamed and store degrades to empty.
 
     [Fact]
     public void Constructor_MissingDirectory_AutoCreated()

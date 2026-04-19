@@ -15,7 +15,11 @@ public sealed class FileLog : ILog
     public FileLog(string? path = null)
     {
         _path = path ?? DefaultPath();
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+        // F-08: create log directory with owner-only ACLs on Windows.
+        // Logged-to-self warnings are silently dropped at this stage since the
+        // log isn't up yet; any failure is bubbled through later writes.
+        ObsidianQuickNoteWidget.Core.IO.DirectorySecurityHelper.CreateWithOwnerOnlyAcl(
+            Path.GetDirectoryName(_path)!, log: null);
     }
 
     public static string DefaultPath() =>
