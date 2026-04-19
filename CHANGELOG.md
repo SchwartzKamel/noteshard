@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0.6] - 2026-04-19
+
+### Fixed
+- Recent Notes widget no longer shows ghost entries for deleted files. `obsidian recents` returns historical paths; we now intersect with the live `obsidian files` list so only currently-present .md files render.
+
 ## [1.0.0.5] - 2026-04-19
 
 ### Fixed
