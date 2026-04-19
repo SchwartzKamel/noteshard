@@ -54,9 +54,30 @@ TestResults/
 ## Signing / secrets
 dev-cert/
 password.txt
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+**/secrets/
+.env
+.env.*
+!.env.example
 
 ## Logs
 **/*.log
 
 ## Azure Functions / local settings
 local.settings.json
+
+## Editor / OS scratch
+*~
+*.bak
+*.backup
+*.swp
+*.orig
+
+## Private / local-only documentation
+# audit-reports/ are internal security reviews — kept local, not published.
+# Remove this line to re-include them in tracking.
+audit-reports/
