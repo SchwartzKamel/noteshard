@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0.4] - 2026-04-19
+
+### Added
+- **Plugin Runner widget** — third widget definition with one-tap buttons that execute any Obsidian command via `obsidian command id=...`. Small (2 tiles), Medium (4), Large (6).
+- Global action catalog persisted to `%LocalAppData%/ObsidianQuickNoteWidget/action-catalog.json` (survives widget unpin).
+- Per-widget `PinnedActionIds` so multiple runner widgets can show different action subsets.
+- Customization card with add / remove (with confirmation) / pin / unpin verbs.
+- `ObsidianCommandInvoker` wrapping the CLI `command` and `commands` verbs; detects `Error:`-prefixed failures on exit=0.
+
+### Changed
+- `WidgetState` gains `IsCustomizing`, `PendingRemoveId`, `LastRunResult`, `PinnedActionIds` (all default-empty/null — backward-compatible).
+
 ## [1.0.0.3] - 2026-04-19
 
 ### Fixed
