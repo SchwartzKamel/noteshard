@@ -13,6 +13,8 @@ public static class CardTemplates
     public const string PluginRunnerSmallTemplate = "PluginRunner.small.json";
     public const string PluginRunnerMediumTemplate = "PluginRunner.medium.json";
     public const string PluginRunnerLargeTemplate = "PluginRunner.large.json";
+    public const string PluginRunnerCustomizeTemplate = "PluginRunner.customize.json";
+    public const string PluginRunnerConfirmRemoveTemplate = "PluginRunner.confirmRemove.json";
 
     public static string Load(string name)
     {
@@ -45,4 +47,10 @@ public static class CardTemplates
         WidgetSize.Large => Load(PluginRunnerLargeTemplate),
         _ => Load(PluginRunnerMediumTemplate),
     };
+
+    /// <summary>Loads the Plugin Runner customization (add/remove/pin) card template.</summary>
+    public static string LoadPluginRunnerCustomize() => Load(PluginRunnerCustomizeTemplate);
+
+    /// <summary>Loads the Plugin Runner "remove action" confirmation card template.</summary>
+    public static string LoadPluginRunnerConfirmRemove() => Load(PluginRunnerConfirmRemoveTemplate);
 }

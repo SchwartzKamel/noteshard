@@ -1,0 +1,189 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "ColumnSet",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "stretch",
+          "verticalContentAlignment": "Center",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "Customize actions",
+              "weight": "Bolder",
+              "size": "Medium",
+              "wrap": false
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "auto",
+          "verticalContentAlignment": "Center",
+          "items": [
+            {
+              "type": "ActionSet",
+              "actions": [
+                {
+                  "type": "Action.Execute",
+                  "title": "Done",
+                  "verb": "cancelCustomize",
+                  "data": { "widgetId": "${widgetId}", "verb": "cancelCustomize" }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "isVisible": "${hasStatus}",
+      "text": "${statusMessage}",
+      "color": "${statusColor}",
+      "wrap": true,
+      "spacing": "Small"
+    },
+    {
+      "type": "Container",
+      "isVisible": "${isEmpty}",
+      "spacing": "Small",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "No actions yet. Add one below.",
+          "wrap": true,
+          "isSubtle": true,
+          "size": "Small"
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "isVisible": "${hasItems}",
+      "spacing": "Small",
+      "items": [
+        {
+          "$data": "${$root.items}",
+          "type": "ColumnSet",
+          "spacing": "Small",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "verticalContentAlignment": "Center",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${label}",
+                  "weight": "Bolder",
+                  "wrap": true,
+                  "maxLines": 1
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "${commandId}",
+                  "isSubtle": true,
+                  "size": "Small",
+                  "wrap": true,
+                  "maxLines": 1,
+                  "spacing": "None"
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "verticalContentAlignment": "Center",
+              "items": [
+                {
+                  "type": "ActionSet",
+                  "actions": [
+                    {
+                      "type": "Action.Execute",
+                      "title": "📌",
+                      "verb": "pinAction",
+                      "isVisible": "${isUnpinned}",
+                      "data": {
+                        "widgetId": "${$root.widgetId}",
+                        "verb": "pinAction",
+                        "actionId": "${id}"
+                      }
+                    },
+                    {
+                      "type": "Action.Execute",
+                      "title": "📍",
+                      "verb": "unpinAction",
+                      "isVisible": "${isPinned}",
+                      "data": {
+                        "widgetId": "${$root.widgetId}",
+                        "verb": "unpinAction",
+                        "actionId": "${id}"
+                      }
+                    },
+                    {
+                      "type": "Action.Execute",
+                      "title": "✕",
+                      "verb": "removeActionConfirm",
+                      "data": {
+                        "widgetId": "${$root.widgetId}",
+                        "verb": "removeActionConfirm",
+                        "actionId": "${id}"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "spacing": "Medium",
+      "separator": true,
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Add action",
+          "weight": "Bolder",
+          "size": "Small",
+          "wrap": false
+        },
+        {
+          "type": "Input.Text",
+          "id": "newLabel",
+          "label": "Label",
+          "placeholder": "Open Daily Note",
+          "value": "${inputs.newLabel}",
+          "maxLength": 64
+        },
+        {
+          "type": "Input.Text",
+          "id": "newCommandId",
+          "label": "Command id",
+          "placeholder": "daily-notes:open-today",
+          "value": "${inputs.newCommandId}",
+          "maxLength": 256
+        },
+        {
+          "type": "ActionSet",
+          "actions": [
+            {
+              "type": "Action.Execute",
+              "title": "Add",
+              "style": "positive",
+              "verb": "addAction",
+              "data": { "widgetId": "${widgetId}", "verb": "addAction" }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

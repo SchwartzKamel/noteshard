@@ -7,6 +7,7 @@ using ObsidianQuickNoteWidget.Core.Cli;
 using ObsidianQuickNoteWidget.Core.Concurrency;
 using ObsidianQuickNoteWidget.Core.Logging;
 using ObsidianQuickNoteWidget.Core.Notes;
+using ObsidianQuickNoteWidget.Core.Runner;
 using ObsidianQuickNoteWidget.Core.State;
 
 namespace ObsidianQuickNoteWidget.Providers;
@@ -23,6 +24,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     private readonly IStateStore _store;
     private readonly IObsidianCli _cli;
     private readonly NoteCreationService _notes;
+    private readonly PluginRunnerHandler _pluginRunner;
     private readonly ConcurrentDictionary<string, WidgetSession> _active = new();
 
     // Per-widget async mutex. Every Get → mutate → Save sequence on the store
@@ -40,14 +42,23 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     private static readonly TimeSpan FolderRefreshInterval = TimeSpan.FromMinutes(2);
 
     public ObsidianWidgetProvider()
-        : this(new FileLog(), new JsonStateStore(), null) { }
+        : this(new FileLog(), new JsonStateStore(), null, null) { }
 
-    internal ObsidianWidgetProvider(ILog log, IStateStore store, IObsidianCli? cli)
+    internal ObsidianWidgetProvider(
+        ILog log,
+        IStateStore store,
+        IObsidianCli? cli,
+        IActionCatalogStore? catalog = null)
     {
         _log = log;
         _store = store;
         _cli = cli ?? new ObsidianCli(log);
         _notes = new NoteCreationService(_cli, log);
+        var invoker = new ObsidianCommandInvoker(_cli, log);
+        _pluginRunner = new PluginRunnerHandler(
+            catalog ?? new JsonActionCatalogStore(),
+            invoker,
+            log);
         _folderRefreshTimer = new Timer(
             _ => FireAndLog(RefreshAllActiveAsync, "timer", "refreshAll"),
             state: null,
@@ -193,6 +204,18 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
 
     private async Task HandleVerbAsync(WidgetSession session, string verb, string? data)
     {
+        if (string.Equals(session.DefinitionId, WidgetIdentifiers.PluginRunnerDefinitionId, StringComparison.Ordinal))
+        {
+            await _gate.WithLockAsync(session.Id, async () =>
+            {
+                if (!_active.ContainsKey(session.Id)) return;
+                var state = _store.Get(session.Id);
+                await _pluginRunner.HandleVerbAsync(verb, data, state).ConfigureAwait(false);
+                _store.Save(state);
+            }).ConfigureAwait(false);
+            return;
+        }
+
         // Persist the user's in-progress "new folder" text so that any
         // re-render (status swap, toggleAdvanced, periodic push) echoes it
         // back into the Input.Text via ${$root.inputs.folderNew} instead of
@@ -437,6 +460,17 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
                 template = CardTemplates.Load(CardTemplates.CliMissingTemplate);
                 data = CardDataBuilder.BuildCliMissingData("`obsidian` was not found on PATH.");
             }
+            else if (string.Equals(session.DefinitionId, WidgetIdentifiers.PluginRunnerDefinitionId, StringComparison.Ordinal))
+            {
+                var size = ParseWidgetSize(session.Size);
+                // Synchronously await the handler: we're on the thread pool via
+                // FireAndLog's ContinueWith, so blocking briefly on the catalog
+                // semaphore is safe.
+                var (t, d) = _pluginRunner.BuildCardAsync(state, size)
+                    .ConfigureAwait(false).GetAwaiter().GetResult();
+                template = t;
+                data = d;
+            }
             else if (string.Equals(session.DefinitionId, WidgetIdentifiers.RecentNotesWidgetId, StringComparison.Ordinal))
             {
                 template = CardTemplates.Load(CardTemplates.RecentNotesTemplate);
@@ -494,6 +528,13 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
 
     private static bool ParseBool(string? s, bool fallback) =>
         s is null ? fallback : string.Equals(s, "true", StringComparison.OrdinalIgnoreCase);
+
+    private static WidgetSize ParseWidgetSize(string? size) => size?.ToLowerInvariant() switch
+    {
+        "small" => WidgetSize.Small,
+        "large" => WidgetSize.Large,
+        _ => WidgetSize.Medium,
+    };
 
     /// <summary>
     /// Resolves the folder for a new note using the documented precedence:

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Remove action?",
+      "weight": "Bolder",
+      "size": "Medium",
+      "wrap": false
+    },
+    {
+      "type": "TextBlock",
+      "isVisible": "${hasTarget}",
+      "text": "Remove '${label}' (${commandId}) from the catalog?",
+      "wrap": true,
+      "spacing": "Small"
+    },
+    {
+      "type": "TextBlock",
+      "isVisible": "${if(hasTarget, false, true)}",
+      "text": "This action no longer exists.",
+      "wrap": true,
+      "isSubtle": true,
+      "spacing": "Small"
+    },
+    {
+      "type": "ActionSet",
+      "spacing": "Medium",
+      "actions": [
+        {
+          "type": "Action.Execute",
+          "title": "Remove",
+          "style": "destructive",
+          "verb": "removeAction",
+          "data": {
+            "widgetId": "${widgetId}",
+            "verb": "removeAction",
+            "actionId": "${actionId}"
+          }
+        },
+        {
+          "type": "Action.Execute",
+          "title": "Cancel",
+          "verb": "cancelRemove",
+          "data": { "widgetId": "${widgetId}", "verb": "cancelRemove" }
+        }
+      ]
+    }
+  ]
+}

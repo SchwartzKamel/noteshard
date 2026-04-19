@@ -101,13 +101,13 @@ public static class CardDataBuilder
         var more = Math.Max(0, filtered.Count - cap);
 
         var actions = new JsonArray();
-        foreach (var a in visible) actions.Add(ActionToJson(a));
+        foreach (var a in visible) actions.Add(ActionToJson(a, state.LastRunResult));
 
         var row0 = new JsonArray();
         var row1 = new JsonArray();
         for (var i = 0; i < visible.Count; i++)
         {
-            var node = ActionToJson(visible[i]);
+            var node = ActionToJson(visible[i], state.LastRunResult);
             if (i < cols) row0.Add(node);
             else row1.Add(node);
         }
@@ -129,6 +129,91 @@ public static class CardDataBuilder
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
     }
 
+    /// <summary>
+    /// Builds the data payload for the Plugin Runner customization card. Lists
+    /// every catalog entry with its pinned-state and provides echo slots for
+    /// the add-form inputs.
+    /// </summary>
+    public static string BuildPluginRunnerCustomizeData(
+        WidgetState state,
+        IReadOnlyList<RunnerAction> catalog,
+        string newLabelEcho = "",
+        string newCommandIdEcho = "")
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        var pinned = new HashSet<Guid>(state.PinnedActionIds);
+        var items = new JsonArray();
+        foreach (var a in catalog)
+        {
+            var isPinned = pinned.Contains(a.Id);
+            items.Add(new JsonObject
+            {
+                ["id"] = a.Id.ToString(),
+                ["label"] = a.Label ?? string.Empty,
+                ["commandId"] = a.CommandId ?? string.Empty,
+                ["isPinned"] = isPinned,
+                ["isUnpinned"] = !isPinned,
+            });
+        }
+
+        var (msg, color, hasStatus) = RenderStatus(state, status: null);
+
+        var root = new JsonObject
+        {
+            ["widgetId"] = state.WidgetId ?? string.Empty,
+            ["items"] = items,
+            ["hasItems"] = catalog.Count > 0,
+            ["isEmpty"] = catalog.Count == 0,
+            ["inputs"] = new JsonObject
+            {
+                ["newLabel"] = newLabelEcho ?? string.Empty,
+                ["newCommandId"] = newCommandIdEcho ?? string.Empty,
+            },
+            ["statusMessage"] = msg ?? string.Empty,
+            ["statusColor"] = color,
+            ["hasStatus"] = hasStatus,
+        };
+
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+    }
+
+    /// <summary>
+    /// Builds the data payload for the Plugin Runner "remove action?"
+    /// confirmation card. When <see cref="WidgetState.PendingRemoveId"/>
+    /// does not match any catalog entry, <c>hasTarget=false</c> so the
+    /// template can render a graceful fallback.
+    /// </summary>
+    public static string BuildPluginRunnerConfirmData(
+        WidgetState state,
+        IReadOnlyList<RunnerAction> catalog)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        var id = state.PendingRemoveId;
+        RunnerAction? target = null;
+        if (id is not null)
+        {
+            foreach (var a in catalog)
+            {
+                if (a.Id == id.Value) { target = a; break; }
+            }
+        }
+
+        var root = new JsonObject
+        {
+            ["widgetId"] = state.WidgetId ?? string.Empty,
+            ["actionId"] = target?.Id.ToString() ?? string.Empty,
+            ["label"] = target?.Label ?? string.Empty,
+            ["commandId"] = target?.CommandId ?? string.Empty,
+            ["hasTarget"] = target is not null,
+        };
+
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+    }
+
     private static List<RunnerAction> FilterAndOrderActions(
         IReadOnlyList<RunnerAction> catalog, List<Guid> pinnedIds)
     {
@@ -143,13 +228,20 @@ public static class CardDataBuilder
         return result;
     }
 
-    private static JsonObject ActionToJson(RunnerAction a) => new()
+    private static JsonObject ActionToJson(RunnerAction a, RunnerActionResult? last = null)
     {
-        ["id"] = a.Id.ToString(),
-        ["label"] = a.Label ?? string.Empty,
-        ["commandId"] = a.CommandId ?? string.Empty,
-        ["lastResult"] = "none",
-    };
+        var result = "none";
+        if (last is not null && last.ActionId == a.Id)
+            result = last.Success ? "ok" : "error";
+
+        return new JsonObject
+        {
+            ["id"] = a.Id.ToString(),
+            ["label"] = a.Label ?? string.Empty,
+            ["commandId"] = a.CommandId ?? string.Empty,
+            ["lastResult"] = result,
+        };
+    }
 
     private static JsonArray BuildFolderChoices(WidgetState s)
     {
