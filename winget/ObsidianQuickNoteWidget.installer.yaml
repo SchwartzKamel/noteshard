@@ -6,13 +6,13 @@ InstallerType: msix
 InstallerLocale: en-US
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/lafiamafia/ObsidianQuickNoteWidget/releases/download/v1.0.0/ObsidianQuickNoteWidget-x64.msix
+    InstallerUrl: https://github.com/SchwartzKamel/noteshard/releases/download/v1.0.0/ObsidianQuickNoteWidget-x64.msix
     # TODO: regenerate after signed MSIX upload
     InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
     # TODO: regenerate after signed MSIX upload
     SignatureSha256: 0000000000000000000000000000000000000000000000000000000000000000
   - Architecture: arm64
-    InstallerUrl: https://github.com/lafiamafia/ObsidianQuickNoteWidget/releases/download/v1.0.0/ObsidianQuickNoteWidget-arm64.msix
+    InstallerUrl: https://github.com/SchwartzKamel/noteshard/releases/download/v1.0.0/ObsidianQuickNoteWidget-arm64.msix
     # TODO: regenerate after signed MSIX upload
     InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
     # TODO: regenerate after signed MSIX upload

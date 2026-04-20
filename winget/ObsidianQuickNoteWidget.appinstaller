@@ -2,14 +2,14 @@
 <AppInstaller
     xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
     Version="1.0.0.0"
-    Uri="https://github.com/lafiamafia/ObsidianQuickNoteWidget/releases/latest/download/ObsidianQuickNoteWidget.appinstaller">
+    Uri="https://github.com/SchwartzKamel/noteshard/releases/latest/download/ObsidianQuickNoteWidget.appinstaller">
 
   <MainPackage
       Name="ObsidianQuickNoteWidget"
       Publisher="CN=ObsidianQuickNoteWidget"
       Version="1.0.0.0"
       ProcessorArchitecture="x64"
-      Uri="https://github.com/lafiamafia/ObsidianQuickNoteWidget/releases/latest/download/ObsidianQuickNoteWidget-x64.msix" />
+      Uri="https://github.com/SchwartzKamel/noteshard/releases/latest/download/ObsidianQuickNoteWidget-x64.msix" />
 
   <UpdateSettings>
     <OnLaunch HoursBetweenUpdateChecks="24" ShowPrompt="true" UpdateBlocksActivation="false" />
