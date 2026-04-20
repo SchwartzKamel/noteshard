@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0.9] - 2026-04-19
+
+### Fixed
+- **Typed-text preservation** — Quick Note no longer wipes the title/body/folder you are mid-composing when the Widget Board activates, resizes, or the 2-minute folder-cache timer ticks in the background. The Windows 11 Widget Host resets all `Input.*` values on every `UpdateWidget` call, so `ObsidianWidgetProvider` now suppresses `PushUpdate` on background paths (`Activate`, focus/visibility `OnWidgetContextChanged` transitions, and `RefreshAllActiveAsync` timer refreshes) and only pushes on explicit user actions, size changes, first-pin, and post-create refreshes where the inputs are already cleared.
+
 ## [1.0.0.8] - 2026-04-19
 
 ### Security

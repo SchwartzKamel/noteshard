@@ -89,7 +89,9 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
             await Task.CompletedTask.ConfigureAwait(false);
         }), id, "createWidget", pushUpdateOnCompletion: true);
 
-        FireAndLog(() => RefreshFolderCacheAsync(id), id, "refreshFolderCache");
+        // First pin: user can't have typed anything yet, so pushing after the
+        // async CLI returns is safe and lets the folder dropdown populate.
+        FireAndLog(() => RefreshFolderCacheAsync(id, pushOnCompletion: true), id, "refreshFolderCache");
     }
 
     public void DeleteWidget(string widgetId, string customState)
@@ -128,6 +130,14 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
         var newSize = ctx.Size.ToString().ToLowerInvariant();
         _log.Info($"OnWidgetContextChanged id={id} newSize={ctx.Size}");
 
+        // Only push a card update when the size actually changed. Widget Host
+        // fires OnWidgetContextChanged for reasons other than resize (e.g.
+        // focus/visibility transitions). Pushing gratuitously wipes any text
+        // the user is currently typing in Input.* fields because Widget Host
+        // re-renders the card and discards client-side input state.
+        var priorSize = _store.Get(id).Size;
+        var sizeChanged = !string.Equals(priorSize, newSize, StringComparison.OrdinalIgnoreCase);
+
         FireAndLog(() => _gate.WithLockAsync(id, async () =>
         {
             if (!_active.ContainsKey(id)) return;
@@ -136,7 +146,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
             _store.Save(state);
             if (_active.TryGetValue(id, out var session)) session.Size = newSize;
             await Task.CompletedTask.ConfigureAwait(false);
-        }), id, "contextChanged", pushUpdateOnCompletion: true);
+        }), id, "contextChanged", pushUpdateOnCompletion: sizeChanged);
     }
 
     public void Activate(WidgetContext widgetContext)
@@ -149,9 +159,15 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
         {
             _active.TryAdd(id, new WidgetSession(id, definitionId, _store.Get(id).Size));
             await Task.CompletedTask.ConfigureAwait(false);
-        }), id, "activate", pushUpdateOnCompletion: true);
+        }), id, "activate", pushUpdateOnCompletion: false);
 
-        FireAndLog(() => RefreshFolderCacheAsync(id), id, "refreshFolderCache");
+        // Refresh the folder cache silently on activate — DO NOT push the
+        // card update when the CLI returns. Widget Host calls Activate every
+        // time the Widget Board becomes visible; pushing an update there
+        // would wipe any in-progress Input.* text the user is typing. The
+        // fresh folders are still saved to state and will appear on the
+        // user's next explicit interaction.
+        FireAndLog(() => RefreshFolderCacheAsync(id, pushOnCompletion: false), id, "refreshFolderCache");
     }
 
     public void Deactivate(string widgetId) { _log.Info($"Deactivate id={widgetId}"); _active.TryRemove(widgetId, out _); }
@@ -395,7 +411,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
         var latest = _store.Get(session.Id);
         if (string.IsNullOrEmpty(latest.LastError))
         {
-            _ = FireAndLog(() => RefreshFolderCacheAsync(session.Id), session.Id, "refreshFolderCache");
+            _ = FireAndLog(() => RefreshFolderCacheAsync(session.Id, pushOnCompletion: true), session.Id, "refreshFolderCache");
         }
     }
 
@@ -421,7 +437,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
         catch (Exception ex) { _log.Warn("openRecent parse failed: " + ex.Message); }
     }
 
-    private async Task RefreshFolderCacheAsync(string widgetId)
+    private async Task RefreshFolderCacheAsync(string widgetId, bool pushOnCompletion = false)
     {
         if (!_cli.IsAvailable) return;
         // CLI call happens outside the gate so refreshes for different widgets
@@ -437,7 +453,11 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
             _store.Save(state);
             return Task.CompletedTask;
         }).ConfigureAwait(false);
-        SafePushUpdate(widgetId);
+        // Only push when the caller opts in. Background refreshes (Activate,
+        // OnWidgetContextChanged, periodic timer) must NOT push because the
+        // user may be mid-type in an Input.Text field; a push would re-render
+        // the card and wipe the in-flight value.
+        if (pushOnCompletion) SafePushUpdate(widgetId);
     }
 
     /// <summary>
@@ -561,7 +581,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
                 state.CachedFoldersAt = now;
                 _store.Save(state);
                 return Task.CompletedTask;
-            }), id, "refreshAllActive", pushUpdateOnCompletion: true).ConfigureAwait(false);
+            }), id, "refreshAllActive", pushUpdateOnCompletion: false).ConfigureAwait(false);
         }
     }
 

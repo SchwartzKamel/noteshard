@@ -1,7 +1,7 @@
 # TODO: replace placeholder repo URL with the real GitHub repo once pushed.
-# TODO: PackageVersion matches the 4-part MSIX counterpart 1.0.0.8 (see Package.appxmanifest Identity/@Version).
+# TODO: PackageVersion matches the 4-part MSIX counterpart 1.0.0.9 (see Package.appxmanifest Identity/@Version).
 PackageIdentifier: Lafiamafia.ObsidianQuickNoteWidget
-PackageVersion: 1.0.0.8
+PackageVersion: 1.0.0.9
 DefaultLocale: en-US
 ManifestType: version
 ManifestVersion: 1.6.0
