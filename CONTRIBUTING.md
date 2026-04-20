@@ -1,43 +1,39 @@
 # Contributing to noteshard
 
-Thanks for your interest! This is a Windows 11-only Widget Board provider
-for [Obsidian](https://obsidian.md) built on .NET 10 + Windows App SDK.
-All contributions go through Pull Requests against `main`.
+This is a Windows 11-only Widget Board provider for
+[Obsidian](https://obsidian.md), built on .NET 10 + Windows App SDK.
 
-## Workflow
+The maintainer (`@SchwartzKamel`) pushes direct to `main` — console-cowboy
+mode. Branch protection is intentionally off. Outside contributors are
+welcome to open PRs though; the PR template and CI will guide you.
 
-1. **Fork or branch** (no direct pushes to `main` — enforced by branch protection):
-   ```powershell
-   git checkout -b fix/short-description
-   ```
-2. **Build & test locally** before pushing:
-   ```powershell
-   dotnet build ObsidianQuickNoteWidget.slnx -c Release -p:Platform=x64
-   dotnet test  ObsidianQuickNoteWidget.slnx -c Release
-   ```
-   CI uses the same commands. `TreatWarningsAsErrors=true` is on — Release
-   builds must be 0W / 0E.
-3. **Open a PR** using the template. CI runs the full Release suite + version
-   triple-sync check and attaches an unsigned MSIX artifact you can sideload
-   to smoke-test.
-4. **Merge** once the `build-and-test` check is green. Linear history only —
-   squash-merge from the GitHub UI.
+## Local dev loop
+
+```powershell
+dotnet build ObsidianQuickNoteWidget.slnx -c Release
+dotnet test  ObsidianQuickNoteWidget.slnx -c Release
+```
+
+`TreatWarningsAsErrors=true` — Release builds must be 0W / 0E. CI runs the
+same commands on every push to `main` and every PR.
 
 ## Releasing
 
-Only `@SchwartzKamel` releases today. See
-[`docs/contributing/release.md`](docs/contributing/release.md) for the full
-procedure. Short version:
+Tag-triggered. Bump the four version strings (manifest + 3 winget YAMLs),
+add a `CHANGELOG.md` `[x.y.z.w]` section, commit, then:
 
-1. Bump the four version strings (manifest + 3 winget YAMLs) + add a
-   `CHANGELOG.md` `[x.y.z.w]` section, all on a PR.
-2. After merge, tag on `main`:
-   ```powershell
-   git tag v1.2.3.4
-   git push origin v1.2.3.4
-   ```
-3. `release.yml` picks it up, signs the MSIX with the repo cert, and
-   creates a GitHub Release with the MSIX + public `.cer` attached.
+```powershell
+git tag v1.2.3.4
+git push origin v1.2.3.4
+```
+
+`release.yml` runs verify-versions → build → test → publish MSIX → sign
+(if `SIGNING_PFX_BASE64`/`SIGNING_PFX_PASSWORD` secrets are set) → creates
+a GitHub Release. Missing secrets fall back to an unsigned MSIX attached
+to the release.
+
+See [`docs/contributing/release.md`](docs/contributing/release.md) for the
+full runbook.
 
 ## Deeper docs
 
@@ -49,26 +45,25 @@ procedure. Short version:
 ## Ground rules
 
 - Windows 11 only. No Linux / macOS / cross-plat assumptions.
-- No secrets, PFX private keys, or personal `%UserProfile%` paths in the
-  repo. See [`SECURITY.md`](SECURITY.md).
+- No secrets, PFX private keys, or personal `%UserProfile%` paths in the repo.
+  See [`SECURITY.md`](SECURITY.md).
 - Every behavioral change to `ObsidianWidgetProvider` needs a BDD scenario.
   The typed-text-wipe regression (1.0.0.9) is the cautionary tale.
 
-## First-time CI setup (maintainer-only)
+## First-time CI signing setup (maintainer-only, optional)
 
-To enable signed releases on this repo:
+Releases work unsigned out of the box. To flip on signed releases:
 
 ```powershell
 # 1. Bootstrap the signing cert (one time)
 ./scripts/bootstrap-signing-cert.ps1
 
-# 2. Paste the two secrets it prints into the repo:
-#      SIGNING_PFX_BASE64, SIGNING_PFX_PASSWORD
+# 2. Paste the two secrets it prints:
+gh secret set SIGNING_PFX_BASE64 < signing-pfx.b64
+gh secret set SIGNING_PFX_PASSWORD   # paste password
 
-# 3. Commit the public .cer (DO NOT commit the .pfx or .b64)
+# 3. Commit the public .cer (NEVER the .pfx or .b64)
 git add scripts/signing/noteshard-signing.cer
 git commit -m "chore(ci): add signing cert public half"
-
-# 4. Apply branch protection (requires gh CLI logged in as admin)
-./scripts/apply-branch-protection.ps1
+Remove-Item signing-pfx.b64
 ```

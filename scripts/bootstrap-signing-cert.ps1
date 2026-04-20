@@ -49,9 +49,13 @@ $cert = New-SelfSignedCertificate `
 
 Write-Host "Thumbprint: $($cert.Thumbprint)"
 
-# Generate a cryptographically strong password
-Add-Type -AssemblyName System.Web
-$password = [System.Web.Security.Membership]::GeneratePassword(32, 4)
+# Generate a cryptographically strong password (32 chars, mixed classes)
+$charSet = ([char[]](33..126)) | Where-Object { $_ -notmatch "[''`"\\]" }
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$bytes = New-Object byte[] 32
+$rng.GetBytes($bytes)
+$password = -join (0..31 | ForEach-Object { $charSet[$bytes[$_] % $charSet.Count] })
+$rng.Dispose()
 $secure = ConvertTo-SecureString -String $password -Force -AsPlainText
 
 $pfxPath = Join-Path $OutDir 'noteshard-signing.pfx'
