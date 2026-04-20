@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **BDD scenario tests for the widget provider.** Introduced `IWidgetUpdateSink` as the sole seam around the static `WidgetManager.GetDefault().UpdateWidget` call so tests can observe every push attempt. Added a Given / When / Then `ProviderScenario` builder plus `ObsidianWidgetProviderPushUpdateScenarios` covering the 1.0.0.9 typed-text-wipe fix (silent folder refresh, same-size context change, timer refresh all stay silent; explicit refresh and resize push exactly once). Suite grew 397 → 403. See [`docs/contributing/testing.md`](docs/contributing/testing.md#bdd-scenario-tests-widget-provider) for the pattern.
+
 ## [1.0.0.9] - 2026-04-19
 
 ### Fixed

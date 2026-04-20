@@ -33,7 +33,7 @@ Two xUnit test projects, called out in
   `IntersectRecentsWithFiles`, `ShouldRefreshRecents`, and
   `PluginRunnerHandler.HandleVerbAsync`.
 
-**Total at HEAD (`cbce283`, 1.0.0.7): 377 passed.**
+**Total at HEAD (1.0.0.9+): 403 passed** — 359 Core + 44 widget (including the new BDD scenarios described below).
 
 ### The Tray companion
 
@@ -55,6 +55,75 @@ No mocking framework. Fakes are hand-rolled in
 
 All fakes are test-internal and share the Core.Tests assembly's
 `InternalsVisibleTo` seam into Core — they construct Core types directly.
+
+## BDD scenario tests (widget provider)
+
+Added in 1.0.0.9 after the typed-text-wipe regression (a background
+`PushUpdate` wiped in-flight `Input.*` values) slipped through because
+`ObsidianWidgetProvider.PushUpdate` called
+`WidgetManager.GetDefault().UpdateWidget(options)` as a static dependency
+that tests could not observe.
+
+### The seam
+
+[`../../src/ObsidianQuickNoteWidget/Providers/IWidgetUpdateSink.cs`](../../src/ObsidianQuickNoteWidget/Providers/IWidgetUpdateSink.cs)
+is a narrow interface with a single method:
+
+```csharp
+internal interface IWidgetUpdateSink
+{
+    void Submit(WidgetUpdateRequestOptions options);
+}
+```
+
+Production uses `WidgetManagerUpdateSink` (the `WidgetManager.GetDefault()`
+forwarder). Tests inject `RecordingUpdateSink` and assert on how many push
+attempts happened and for which widget ids.
+
+### Given / When / Then builder
+
+[`../../tests/ObsidianQuickNoteWidget.Tests/Bdd/ProviderScenario.cs`](../../tests/ObsidianQuickNoteWidget.Tests/Bdd/ProviderScenario.cs)
+provides a fluent builder so each test reads as a behavior specification:
+
+```csharp
+[Fact(DisplayName =
+    "Given a small widget, " +
+    "When the user resizes it to large, " +
+    "Then a card update is pushed and the new size is persisted")]
+public async Task ContextChanged_DifferentSize_Pushes()
+{
+    var then = await new ProviderScenario()
+        .WidgetIsActive("w1", WidgetIdentifiers.QuickNoteWidgetId, size: "small")
+        .When(p => p.HandleContextChangeCore("w1", "large"));
+
+    then.PushUpdateCountFor_Is("w1", 1)
+        .StateSizeIs("w1", "large");
+}
+```
+
+Rules of thumb for writing new scenarios:
+
+- **Given** — set up via fluent methods only
+  (`WithCliAvailable`, `WithFolders`, `WidgetIsActive`, `WithState`). No direct
+  fake-field mutation inside the test body.
+- **When** — a single `.When(p => p.SomeMethod(...))` call. The lambda should
+  exercise exactly one code path; if you need two, write two scenarios.
+- **Then** — chain assertions off the returned
+  `ProviderScenarioAssertions`. Prefer the named helpers (`PushUpdateCount_Is`,
+  `NoPushUpdateFor`, `CachedFoldersContains`, `StateField`) over inline
+  `Assert.*` so the intent reads like a spec.
+- **Display names** — always set a `DisplayName =` on `[Fact]` attributes
+  formatted as `"Given … When … Then …"`. The test runner surfaces these,
+  and CI logs read as living documentation of the provider contract.
+
+When you add a new background path that could push updates, add a
+"Given the widget is active, When <path> runs in the background,
+Then no card update is pushed" scenario before wiring it up. That's how we
+keep the typed-text-wipe family of bugs from coming back.
+
+See
+[`../../tests/ObsidianQuickNoteWidget.Tests/ObsidianWidgetProviderPushUpdateScenarios.cs`](../../tests/ObsidianQuickNoteWidget.Tests/ObsidianWidgetProviderPushUpdateScenarios.cs)
+for the canonical examples.
 
 ## Running
 
@@ -98,6 +167,14 @@ Known uncovered surfaces — the short list at HEAD:
   `Enum.TryParse<NoteTemplate>` `ignoreCase` fallback to `Blank`, and
   `state.Template = template ?? "Blank"` persisted-fallback. Both covered
   only transitively today.
+
+Closed in 1.0.0.9:
+
+- **Provider `PushUpdate` orchestration** — previously untestable because
+  `WidgetManager.GetDefault().UpdateWidget` was a static call. Now routed
+  through `IWidgetUpdateSink`; scenarios in
+  `ObsidianWidgetProviderPushUpdateScenarios` assert push behavior on
+  background vs. foreground paths.
 
 Close the gap by preference order: pure Core function → Core integration with
 fakes → `InvokeVerbForTest` through the provider → new `InternalsVisibleTo`

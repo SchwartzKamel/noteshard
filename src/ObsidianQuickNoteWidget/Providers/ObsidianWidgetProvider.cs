@@ -24,6 +24,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     private readonly IStateStore _store;
     private readonly IObsidianCli _cli;
     private readonly IObsidianLauncher _launcher;
+    private readonly IWidgetUpdateSink _updateSink;
     private readonly NoteCreationService _notes;
     private readonly PluginRunnerHandler _pluginRunner;
     private readonly ConcurrentDictionary<string, WidgetSession> _active = new();
@@ -44,19 +45,21 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     internal static readonly TimeSpan RecentNotesCacheTtl = TimeSpan.FromSeconds(30);
 
     public ObsidianWidgetProvider()
-        : this(new FileLog(), new JsonStateStore(), null, null, null) { }
+        : this(new FileLog(), new JsonStateStore(), null, null, null, null) { }
 
     internal ObsidianWidgetProvider(
         ILog log,
         IStateStore store,
         IObsidianCli? cli,
         IActionCatalogStore? catalog = null,
-        IObsidianLauncher? launcher = null)
+        IObsidianLauncher? launcher = null,
+        IWidgetUpdateSink? updateSink = null)
     {
         _log = log;
         _store = store;
         _cli = cli ?? new ObsidianCli(log);
         _launcher = launcher ?? new ObsidianLauncher(log);
+        _updateSink = updateSink ?? new WidgetManagerUpdateSink();
         _notes = new NoteCreationService(_cli, log);
         var invoker = new ObsidianCommandInvoker(_cli, log);
         _pluginRunner = new PluginRunnerHandler(
@@ -129,7 +132,14 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
         var id = ctx.Id;
         var newSize = ctx.Size.ToString().ToLowerInvariant();
         _log.Info($"OnWidgetContextChanged id={id} newSize={ctx.Size}");
+        HandleContextChangeCore(id, newSize);
+    }
 
+    // Factored so BDD scenario tests can invoke the context-change code path
+    // without constructing a WinRT WidgetContextChangedArgs (which has no
+    // public ctor). Production callers go through OnWidgetContextChanged.
+    internal Task HandleContextChangeCore(string id, string newSize)
+    {
         // Only push a card update when the size actually changed. Widget Host
         // fires OnWidgetContextChanged for reasons other than resize (e.g.
         // focus/visibility transitions). Pushing gratuitously wipes any text
@@ -138,7 +148,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
         var priorSize = _store.Get(id).Size;
         var sizeChanged = !string.Equals(priorSize, newSize, StringComparison.OrdinalIgnoreCase);
 
-        FireAndLog(() => _gate.WithLockAsync(id, async () =>
+        return FireAndLog(() => _gate.WithLockAsync(id, async () =>
         {
             if (!_active.ContainsKey(id)) return;
             var state = _store.Get(id);
@@ -437,7 +447,9 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
         catch (Exception ex) { _log.Warn("openRecent parse failed: " + ex.Message); }
     }
 
-    private async Task RefreshFolderCacheAsync(string widgetId, bool pushOnCompletion = false)
+    // internal for BDD scenario tests: drives the folder-cache refresh path
+    // without waiting on the 2-minute timer or going through CreateWidget.
+    internal async Task RefreshFolderCacheAsync(string widgetId, bool pushOnCompletion = false)
     {
         if (!_cli.IsAvailable) return;
         // CLI call happens outside the gate so refreshes for different widgets
@@ -562,7 +574,9 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
     /// active widget so the dropdown picks up vault changes made in Obsidian
     /// without the user having to deactivate/reactivate the widget.
     /// </summary>
-    private async Task RefreshAllActiveAsync()
+    // internal for BDD scenario tests: exercises the timer path without
+    // waiting on FolderRefreshInterval.
+    internal async Task RefreshAllActiveAsync()
     {
         if (_active.IsEmpty || !_cli.IsAvailable) return;
         // One CLI call shared across all widgets — then write to each state.
@@ -637,7 +651,7 @@ public sealed partial class ObsidianWidgetProvider : IWidgetProvider, IWidgetPro
                 Data = data,
                 CustomState = string.Empty,
             };
-            WidgetManager.GetDefault().UpdateWidget(options);
+            _updateSink.Submit(options);
         }
         catch (Exception ex)
         {
