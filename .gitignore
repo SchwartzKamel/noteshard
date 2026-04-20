@@ -20,6 +20,15 @@ BundleArtifacts/
 *.msixupload
 *.pfx
 *.cer
+# Allow the public signing cert checked in for CI to use during MSIX
+# signing. Its private-key PFX half lives only in the SIGNING_PFX_BASE64
+# GitHub Actions secret and must never be committed.
+!scripts/signing/noteshard-signing.cer
+# Local bootstrap output from scripts/bootstrap-signing-cert.ps1 — the
+# base64-encoded PFX is a secret, paste it into SIGNING_PFX_BASE64 and
+# delete it locally.
+signing-pfx.b64
+scripts/signing/*.pfx
 GeneratedArtifacts/
 # Dev-cert scratch area (see tools/New-DevCert.ps1). Lives under %LocalAppData%
 # so is normally outside the tree, but guard explicitly in case a developer

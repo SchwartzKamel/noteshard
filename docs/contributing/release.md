@@ -40,6 +40,36 @@ Examples of the convention live at CHANGELOG lines 10–80. The security section
 (e.g. `### Security` under 1.0.0.1 / 1.0.0.3) cross-references the F-series
 IDs from the audit reports.
 
+## Tag-triggered CI release (1.0.0.9+)
+
+As of 1.0.0.9 the authoritative way to cut a release is to push a
+`v<version>` tag — [`../../.github/workflows/release.yml`](../../.github/workflows/release.yml)
+does the rest (build, test, sign with the repo cert, publish a GitHub
+Release with the MSIX and public `.cer` attached).
+
+```powershell
+# On a PR merged to main that bumps the four version strings:
+git checkout main
+git pull
+git tag v1.0.0.10
+git push origin v1.0.0.10
+```
+
+Preconditions (one-time, per-repo):
+
+- `scripts/signing/noteshard-signing.cer` is committed.
+- Repo secrets `SIGNING_PFX_BASE64` and `SIGNING_PFX_PASSWORD` are set.
+- Run [`../../scripts/bootstrap-signing-cert.ps1`](../../scripts/bootstrap-signing-cert.ps1)
+  once to produce both.
+
+The workflow hard-fails if the tag (e.g. `v1.0.0.10`) does not match the
+four committed version strings — that's `scripts/verify-versions.ps1`
+doing its job.
+
+The manual steps below remain accurate for local dev-cert cuts (e.g. you
+want to test an MSIX before pushing a tag), but you don't need to run
+them to ship a release.
+
 ## Build the MSIX
 
 ```powershell

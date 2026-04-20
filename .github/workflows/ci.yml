@@ -1,0 +1,81 @@
+name: ci
+
+# Validates every PR and every push to main. Runs the full Release build
+# (not Debug — TreatWarningsAsErrors=true only bites in Release), executes
+# BOTH test projects (Core + widget, including the BDD scenario tests added
+# in 1.0.0.9), and packages an unsigned MSIX artifact so reviewers can
+# sideload the PR's bits before merging.
+#
+# Tag-triggered releases live in release.yml.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore ObsidianQuickNoteWidget.slnx
+
+      - name: Build (Release, x64)
+        run: >
+          dotnet build ObsidianQuickNoteWidget.slnx
+          -c Release
+          -p:Platform=x64
+          --no-restore
+
+      - name: Verify version triple-sync
+        shell: pwsh
+        run: ./scripts/verify-versions.ps1
+
+      - name: Test (Release)
+        run: >
+          dotnet test ObsidianQuickNoteWidget.slnx
+          -c Release
+          --no-build
+          --logger "trx;LogFileName=tests.trx"
+          --logger "console;verbosity=normal"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_attempt }}
+          path: '**/*.trx'
+
+      - name: Publish unsigned MSIX (preview artifact)
+        run: >
+          dotnet publish src/ObsidianQuickNoteWidget/ObsidianQuickNoteWidget.csproj
+          -c Release
+          -p:Platform=x64
+          -p:GenerateAppxPackageOnBuild=true
+          -p:AppxPackageSigningEnabled=false
+          -p:AppxBundle=Never
+          -p:UapAppxPackageBuildMode=SideloadOnly
+
+      - name: Upload unsigned MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noteshard-msix-unsigned
+          path: src/ObsidianQuickNoteWidget/**/AppPackages/**/*.msix
+          if-no-files-found: error
+          retention-days: 14

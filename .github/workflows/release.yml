@@ -1,0 +1,114 @@
+name: release
+
+# Tag-triggered release pipeline. Signs the MSIX with the stable repo cert
+# (public .cer in scripts/signing/, private PFX base64 in the SIGNING_PFX_BASE64
+# secret + password in SIGNING_PFX_PASSWORD) and creates a GitHub Release
+# with the MSIX + public cert attached so winget URLs resolve and users can
+# sideload after one-time trust of the cert.
+#
+# Preconditions (one-time setup — run scripts/bootstrap-signing-cert.ps1):
+#   - scripts/signing/noteshard-signing.cer committed (public only)
+#   - SIGNING_PFX_BASE64 repo secret contains base64(.pfx)
+#   - SIGNING_PFX_PASSWORD repo secret contains the PFX password
+#
+# Trigger: push a tag that looks like v1.2.3.4. The tag must match the four
+# version strings in Package.appxmanifest and the three winget YAMLs — the
+# verify-versions step gates on this.
+
+on:
+  push:
+    tags: [ 'v*.*.*.*' ]
+
+permissions:
+  contents: write  # required for softprops/action-gh-release
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Derive version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"      # e.g. v1.0.0.9
+          $version = $tag.TrimStart('v')
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Release version: $version"
+
+      - name: Verify tag matches committed versions
+        shell: pwsh
+        run: ./scripts/verify-versions.ps1 -ExpectedVersion "${{ steps.ver.outputs.version }}"
+
+      - name: Restore
+        run: dotnet restore ObsidianQuickNoteWidget.slnx
+
+      - name: Build (Release, x64)
+        run: >
+          dotnet build ObsidianQuickNoteWidget.slnx
+          -c Release
+          -p:Platform=x64
+          --no-restore
+
+      - name: Test (Release)
+        run: >
+          dotnet test ObsidianQuickNoteWidget.slnx
+          -c Release
+          --no-build
+
+      - name: Publish MSIX (unsigned)
+        run: >
+          dotnet publish src/ObsidianQuickNoteWidget/ObsidianQuickNoteWidget.csproj
+          -c Release
+          -p:Platform=x64
+          -p:GenerateAppxPackageOnBuild=true
+          -p:AppxPackageSigningEnabled=false
+          -p:AppxBundle=Never
+          -p:UapAppxPackageBuildMode=SideloadOnly
+
+      - name: Sign MSIX
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+        run: ./scripts/sign-msix.ps1 -Version "${{ steps.ver.outputs.version }}"
+
+      - name: Stage release assets
+        id: stage
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.version }}"
+          $dir = "release-assets"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $msix = Get-ChildItem "src/ObsidianQuickNoteWidget/bin/x64/Release" -Recurse -Filter "*.msix" | Select-Object -First 1
+          if (-not $msix) { throw "MSIX not found after signing" }
+          Copy-Item $msix.FullName "$dir/ObsidianQuickNoteWidget_${version}_x64.msix"
+          Copy-Item scripts/signing/noteshard-signing.cer "$dir/noteshard-signing.cer"
+          Write-Host "Staged:"
+          Get-ChildItem $dir | ForEach-Object { Write-Host "  $($_.Name) ($([Math]::Round($_.Length/1KB,1)) KB)" }
+          "dir=$dir" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Extract CHANGELOG section
+        id: changelog
+        shell: pwsh
+        run: ./scripts/extract-changelog.ps1 -Version "${{ steps.ver.outputs.version }}" -OutputFile "$env:GITHUB_WORKSPACE/release-notes.md"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: noteshard ${{ steps.ver.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.stage.outputs.dir }}/*.msix
+            ${{ steps.stage.outputs.dir }}/*.cer

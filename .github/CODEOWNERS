@@ -1,0 +1,7 @@
+# CODEOWNERS — every PR touching the repo auto-requests @SchwartzKamel for
+# review. Branch protection (see scripts/apply-branch-protection.ps1) does
+# not currently require an approving review (solo repo), but keeping this
+# file in place means the right reviewer is always tagged and, the moment
+# you flip `required_approving_review_count` to 1, enforcement kicks in.
+
+* @SchwartzKamel

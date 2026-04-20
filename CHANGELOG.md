@@ -8,7 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CI release pipeline.** `.github/workflows/release.yml` picks up `v*.*.*.*` tags, builds + tests + signs the MSIX with the repo signing cert (`SIGNING_PFX_BASE64` / `SIGNING_PFX_PASSWORD` secrets, public `.cer` tracked at `scripts/signing/noteshard-signing.cer`), and creates a GitHub Release with the MSIX + cert attached so winget URLs resolve. `ci.yml` now builds Release (not Debug) and runs BOTH test projects on every PR; the resulting unsigned MSIX is attached as a PR artifact for reviewer smoke-tests. `scripts/verify-versions.ps1` gates every CI run on the four version strings agreeing, and every release on the tag matching those versions. See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/contributing/release.md`](docs/contributing/release.md).
 - **BDD scenario tests for the widget provider.** Introduced `IWidgetUpdateSink` as the sole seam around the static `WidgetManager.GetDefault().UpdateWidget` call so tests can observe every push attempt. Added a Given / When / Then `ProviderScenario` builder plus `ObsidianWidgetProviderPushUpdateScenarios` covering the 1.0.0.9 typed-text-wipe fix (silent folder refresh, same-size context change, timer refresh all stay silent; explicit refresh and resize push exactly once). Suite grew 397 → 403. See [`docs/contributing/testing.md`](docs/contributing/testing.md#bdd-scenario-tests-widget-provider) for the pattern.
+
+### Changed
+- **Contribution workflow: PR-only on `main`.** Added `CONTRIBUTING.md`, `.github/pull_request_template.md`, `.github/CODEOWNERS`, and `scripts/apply-branch-protection.ps1` to require a PR + passing `build-and-test` check for every change landing on `main`. Run the script once as a repo admin to turn on server-side enforcement.
 
 ## [1.0.0.9] - 2026-04-19
 
