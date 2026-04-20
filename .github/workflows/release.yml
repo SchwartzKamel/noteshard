@@ -50,11 +50,10 @@ jobs:
       - name: Restore
         run: dotnet restore ObsidianQuickNoteWidget.slnx
 
-      - name: Build (Release, x64)
+      - name: Build (Release)
         run: >
           dotnet build ObsidianQuickNoteWidget.slnx
           -c Release
-          -p:Platform=x64
           --no-restore
 
       - name: Test (Release)
