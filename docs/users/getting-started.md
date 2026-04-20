@@ -76,7 +76,7 @@ Windows occasionally keeps stale widget manifests cached. Two fixes, in order:
 - [Quick Note widget](./widgets/quick-note.md) — the main note-creation form.
 - [Recent Notes widget](./widgets/recent-notes.md) — jump back to recent files.
 - [Plugin Runner widget](./widgets/plugin-runner.md) — one-tap command buttons.
-- [Tray companion](./tray-companion.md) — Ctrl+Alt+N from anywhere.
+- [Tray companion](./tray-companion.md) — optional, for keyboard-first capture.
 - [Troubleshooting](./troubleshooting.md) — common problems with copy-paste fixes.
 
 ↑ Back to [docs index](../README.md)

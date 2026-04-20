@@ -62,7 +62,7 @@ If you later hit "wrong vault selected", see [troubleshooting](../troubleshootin
 
 ## Paste from clipboard
 
-The **Paste → body** button copies your clipboard into the Body field. The [tray companion](../tray-companion.md) does the same thing automatically when you open it with `Ctrl+Alt+N`.
+The **Paste → body** button copies your clipboard into the Body field. The optional [tray companion](../tray-companion.md) does the same thing automatically when you open it.
 
 ## Status messages
 

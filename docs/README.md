@@ -18,7 +18,7 @@ This directory holds everything that didn't fit in the root [`README.md`](../REA
 | [`users/widgets/quick-note.md`](users/widgets/quick-note.md) | The main Quick Note widget — every field, every size. |
 | [`users/widgets/recent-notes.md`](users/widgets/recent-notes.md) | The Recent Notes widget — how it refreshes, how to open a note. |
 | [`users/widgets/plugin-runner.md`](users/widgets/plugin-runner.md) | The Plugin Runner widget — one-tap Obsidian commands. |
-| [`users/tray-companion.md`](users/tray-companion.md) | The tray app + `Ctrl+Alt+N` global hotkey. |
+| [`users/tray-companion.md`](users/tray-companion.md) | Optional tray app for keyboard-first capture. |
 | [`users/troubleshooting.md`](users/troubleshooting.md) | Copy-paste fixes for common issues. |
 
 ### I want to **contribute** (code, tests, releases)

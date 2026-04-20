@@ -1,8 +1,8 @@
 # Obsidian Quick Note Widget
 
-> **Windows 11 only.** A Widget Board provider + tray companion that creates [Obsidian](https://obsidian.md) notes without ever leaving your current app. Built on .NET 10 and shipped as an MSIX.
+> **Windows 11 only.** A Widget Board provider that creates [Obsidian](https://obsidian.md) notes without ever opening Obsidian itself. Built on .NET 10 and shipped as an MSIX.
 
-Pin a Quick Note card to the Widget Board, type a title (or a full body with tags and template), hit **Create**, done. Or use the tray companion's global **Ctrl+Alt+N** hotkey for keyboard-first capture from anywhere in Windows.
+Hit **Win + W**, pin a Quick Note card, type a title (or a full body with tags and template), hit **Create** — done. Stays out of your way until you need it.
 
 No plugins. No HTTP server. No vault path configuration. The widget talks to Obsidian through the official `obsidian` CLI that ships with **Obsidian 1.12+**.
 
@@ -16,7 +16,7 @@ Three pinnable widgets, all driven by the same MSIX:
 - **Recent Notes** — a live list of the most recently opened notes. Click any item to open it (launches Obsidian if closed).
 - **Plugin Runner** — one-tap buttons that execute any Obsidian command by ID (e.g. `workspace:new-tab`, or anything your installed plugins expose). 2 / 4 / 6 tiles per size.
 
-Plus a tray companion (`ObsidianQuickNoteTray.exe`) that registers **Ctrl+Alt+N** globally and opens a popup form using the same create pipeline.
+A small tray companion (`ObsidianQuickNoteTray.exe`) ships alongside for keyboard-first capture if you want it — see [`docs/users/tray-companion.md`](docs/users/tray-companion.md). The Widget Board is the primary surface; the tray is optional.
 
 ---
 
@@ -78,7 +78,7 @@ src/
   ObsidianQuickNoteWidget.Core/        Portable library — CLI wrapper, note creation, state,
                                         Adaptive Card templates, validators. All tested here.
   ObsidianQuickNoteWidget/              Windows-only COM server + MSIX package.
-  ObsidianQuickNoteWidget.Tray/         WinForms tray app with the global hotkey.
+  ObsidianQuickNoteWidget.Tray/         Optional WinForms tray app for keyboard-first capture.
 tests/
   ObsidianQuickNoteWidget.Core.Tests/   xUnit tests for Core.
   ObsidianQuickNoteWidget.Tests/        xUnit tests for widget-assembly internals.
