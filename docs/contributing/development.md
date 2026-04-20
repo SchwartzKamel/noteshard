@@ -38,7 +38,7 @@ fails the build. If something warns, fix the code, not the gate.
 dotnet test -c Release
 ```
 
-Expected at HEAD (`cbce283`, 1.0.0.7): **377 / 377 passed**. Two projects:
+Expected at HEAD (1.0.0.10): **403 / 403 passed**. Two projects:
 
 - [`../../tests/ObsidianQuickNoteWidget.Core.Tests`](../../tests/ObsidianQuickNoteWidget.Core.Tests) — portable, no Windows APIs.
 - [`../../tests/ObsidianQuickNoteWidget.Tests`](../../tests/ObsidianQuickNoteWidget.Tests) — widget COM assembly; needs `x64` and `InternalsVisibleTo` (added in 1.0.0.3).

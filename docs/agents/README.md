@@ -35,7 +35,7 @@ This page is for AI coding agents making changes to the Obsidian Quick Note Widg
 
 ## Tests
 
-- 377 tests, all `Core` only. Run `dotnet test -c Release`. See `docs/agents/commands.md`.
+- 403 tests, all `Core` only. Run `dotnet test -c Release`. See `docs/agents/commands.md`.
 - No UI / COM test harness. If you touch COM, manifest, or the message pump, validate by packaging + installing the MSIX and watching `%LocalAppData%\Packages\ObsidianQuickNoteWidget_*\LocalCache\Local\...\log.txt`.
 
 ## Don't

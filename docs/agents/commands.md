@@ -21,7 +21,7 @@ dotnet build ObsidianQuickNoteWidget.slnx -c Release --nologo
 
 ## Test
 
-Full suite (Release — matches CI expectations; 377 tests at HEAD):
+Full suite (Release — matches CI expectations; 403 tests at HEAD):
 
 ```powershell
 dotnet test tests\ObsidianQuickNoteWidget.Core.Tests\ObsidianQuickNoteWidget.Core.Tests.csproj -c Release --nologo

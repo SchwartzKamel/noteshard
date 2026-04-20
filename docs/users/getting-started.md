@@ -12,25 +12,29 @@ This page is for users who want to install Obsidian Quick Note Widget on Windows
 
 ## Install
 
-### From a local MSIX (current dev path)
+Install from the project's GitHub Releases page. The package is signed, but because the signing certificate isn't from a public authority, you need to tell Windows to trust it once before installing.
 
-Until the package ships to winget, install the signed MSIX produced by the build:
+1. **Download two files** from the [latest release](https://github.com/SchwartzKamel/noteshard/releases/latest):
+   - `noteshard-signing.cer` — the signing certificate's public half.
+   - `ObsidianQuickNoteWidget_<version>_x64.msix` — the app itself.
 
-```powershell
-Add-AppxPackage -Path .\ObsidianQuickNoteWidget_1.0.0.7_x64.msix
-```
+2. **Trust the certificate (one time).** Open PowerShell **as Administrator**, change into the folder where you saved the files, and run:
 
-If the MSIX is signed by a certificate your machine doesn't already trust, you'll need to install that certificate into `Trusted People` first. For the dev-cert bootstrap flow, see [contributing/development.md](../contributing/development.md).
+   ```powershell
+   Import-Certificate -FilePath .\noteshard-signing.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+   ```
 
-### From winget (future)
+   You only need to do this once per machine. Future updates signed with the same certificate install without repeating this step.
 
-Once the package is published, installation will be:
+3. **Install the package.** In the same folder, run:
 
-```powershell
-winget install ObsidianMD.ObsidianQuickNoteWidget
-```
+   ```powershell
+   Add-AppxPackage -Path .\ObsidianQuickNoteWidget_<version>_x64.msix
+   ```
 
-(The `winget/` folder in the repo holds the manifest that will be submitted — this path is not live yet.)
+   Replace `<version>` with the actual version number in the filename you downloaded (for example, `1.0.0.10`).
+
+> A winget manifest is tracked in `winget/` for future publication; follow releases for now.
 
 ## First run
 
@@ -54,7 +58,7 @@ winget install ObsidianMD.ObsidianQuickNoteWidget
    Get-AppxPackage ObsidianQuickNoteWidget
    ```
 
-   You should see `Version : 1.0.0.7` (or newer) and a non-empty `InstallLocation`.
+   You should see a `Version` matching the `.msix` you installed (check the [latest release](https://github.com/SchwartzKamel/noteshard/releases/latest) if you're not sure what to expect) and a non-empty `InstallLocation`.
 
 ## If the Widget Board doesn't see the widget after install
 
@@ -66,10 +70,10 @@ Windows occasionally keeps stale widget manifests cached. Two fixes, in order:
 
    ```powershell
    Add-AppxPackage -DisableDevelopmentMode -Register `
-     "$env:ProgramFiles\WindowsApps\ObsidianQuickNoteWidget_1.0.0.7_x64__*\AppxManifest.xml"
+     "$env:ProgramFiles\WindowsApps\ObsidianQuickNoteWidget_<version>_x64__*\AppxManifest.xml"
    ```
 
-   Adjust the path to match whatever `Get-AppxPackage ObsidianQuickNoteWidget` reports as `InstallLocation`.
+   Replace `<version>` with your installed version. The easiest way to get the exact path is to run `Get-AppxPackage ObsidianQuickNoteWidget` first and use whatever it reports as `InstallLocation` (append `\AppxManifest.xml`).
 
 ## Next steps
 

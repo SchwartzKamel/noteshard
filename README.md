@@ -24,7 +24,20 @@ A small tray companion (`ObsidianQuickNoteTray.exe`) ships alongside for keyboar
 
 Requires **Windows 11 22H2** (build 22621) or newer and **Obsidian 1.12+** with the CLI registered (*Obsidian → Settings → General → Command Line Interface → Enable → Register CLI*).
 
-While the package is pre-release, install the signed MSIX directly:
+The MSIX is code-signed, but because it's distributed outside the Microsoft Store you need to trust the signing certificate once before Windows will install it. Three steps:
+
+**1. Download the two files** from the [latest release](https://github.com/SchwartzKamel/noteshard/releases/latest):
+
+- `noteshard-signing.cer` — the public half of the signing certificate
+- `ObsidianQuickNoteWidget_<version>_x64.msix` — the app itself
+
+**2. Trust the certificate** (one-time, per machine). Open **PowerShell as Administrator** in the folder where you downloaded the files and run:
+
+```powershell
+Import-Certificate -FilePath .\noteshard-signing.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+```
+
+**3. Install the MSIX** (no admin required):
 
 ```powershell
 Add-AppxPackage -Path .\ObsidianQuickNoteWidget_<version>_x64.msix
@@ -32,7 +45,7 @@ Add-AppxPackage -Path .\ObsidianQuickNoteWidget_<version>_x64.msix
 
 Open the Widget Board (`Win + W`), click **+ Add widgets**, and pin one of the three Obsidian widgets.
 
-Full install walkthrough: [`docs/users/getting-started.md`](docs/users/getting-started.md).
+Full install walkthrough: [`docs/users/getting-started.md`](docs/users/getting-started.md). Prefer to build from source? See [`docs/contributing/development.md`](docs/contributing/development.md).
 
 ---
 

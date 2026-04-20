@@ -1,76 +1,152 @@
 # Release
 
-> This page is for contributors cutting a release build. It covers the dev-cert sideload cut that ships today; public publish (winget / Store) is still blocked — see §Open blockers.
+> This page is for contributors cutting a release. The canonical path is
+> **tag-triggered CI** — push a `vX.Y.Z.W` tag and
+> [`../../.github/workflows/release.yml`](../../.github/workflows/release.yml)
+> builds, tests, signs, and publishes the GitHub Release. The local dev-cert
+> sideload flow further down is retained for pre-flight MSIX testing only.
 
 Up: [`../README.md`](../README.md) (docs index)
 
-## Version triple-check
+Current shipped version: **1.0.0.10** — signed MSIX at
+[latest release](https://github.com/SchwartzKamel/noteshard/releases/latest).
 
-Four places carry a version string and must agree on the first three segments:
+## Release checklist (cowboy edition)
 
-| File | Field | Today (1.0.0.7) |
-| --- | --- | --- |
-| [`../../src/ObsidianQuickNoteWidget/Package.appxmanifest`](../../src/ObsidianQuickNoteWidget/Package.appxmanifest) | `<Identity Version="…" />` (line 14) | `1.0.0.7` |
-| Same manifest | `<Application .../>` does not carry a version, but `<Identity>` is canonical — the MSIX toolchain copies it into the final AppxManifest.xml inside the bundle. | — |
-| [`../../winget/ObsidianQuickNoteWidget.yaml`](../../winget/ObsidianQuickNoteWidget.yaml) | `PackageVersion` | `1.0.0.7` |
-| [`../../winget/ObsidianQuickNoteWidget.installer.yaml`](../../winget/ObsidianQuickNoteWidget.installer.yaml) | `PackageVersion` | `1.0.0.7` |
-| [`../../winget/ObsidianQuickNoteWidget.locale.en-US.yaml`](../../winget/ObsidianQuickNoteWidget.locale.en-US.yaml) | `PackageVersion` | `1.0.0.7` |
+Console-cowboy mode: the maintainer pushes direct to `main`. No PR, no branch
+protection. Outside contributors are welcome to open PRs but that's not the
+release path. Steps, top to bottom:
 
-The Package manifest carries a full 4-part `Major.Minor.Build.Revision`; the
-winget manifests mirror the same 4-part string today. A `make verify-versions`
-gate is on the backlog — until it lands, use ripgrep:
+### 1. Local pre-flight
+
+```powershell
+dotnet build ObsidianQuickNoteWidget.slnx -c Release
+dotnet test  ObsidianQuickNoteWidget.slnx -c Release
+```
+
+Expected: **0 Warning(s), 0 Error(s)** and **403/403 passed** (at
+1.0.0.10 — see [`testing.md`](./testing.md) for the breakdown).
+`TreatWarningsAsErrors=true` is global; if something warns, fix the code,
+not the gate. CI runs the same commands in `ci.yml` on every push/PR.
+
+### 2. Bump the four version strings
+
+They must all agree on the 4-part `Major.Minor.Build.Revision`:
+
+| File | Field |
+| --- | --- |
+| [`../../src/ObsidianQuickNoteWidget/Package.appxmanifest`](../../src/ObsidianQuickNoteWidget/Package.appxmanifest) | `<Identity Version="X.Y.Z.W" />` |
+| [`../../winget/ObsidianQuickNoteWidget.yaml`](../../winget/ObsidianQuickNoteWidget.yaml) | `PackageVersion: X.Y.Z.W` |
+| [`../../winget/ObsidianQuickNoteWidget.installer.yaml`](../../winget/ObsidianQuickNoteWidget.installer.yaml) | `PackageVersion: X.Y.Z.W` |
+| [`../../winget/ObsidianQuickNoteWidget.locale.en-US.yaml`](../../winget/ObsidianQuickNoteWidget.locale.en-US.yaml) | `PackageVersion: X.Y.Z.W` |
+
+[`../../scripts/verify-versions.ps1`](../../scripts/verify-versions.ps1) gates
+CI — the `release.yml` workflow hard-fails if the tag doesn't match all four
+strings. Run it locally to double-check:
+
+```powershell
+./scripts/verify-versions.ps1 -ExpectedVersion 1.0.0.10
+```
+
+Or quick grep:
 
 ```powershell
 rg -n 'PackageVersion|Identity.*Version' winget src/ObsidianQuickNoteWidget/Package.appxmanifest
 ```
 
-## CHANGELOG entry
+### 3. CHANGELOG entry
 
-[`../../CHANGELOG.md`](../../CHANGELOG.md) follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/):
+[`../../CHANGELOG.md`](../../CHANGELOG.md) follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/):
 
-1. Move the contents of `## [Unreleased]` under a new `## [X.Y.Z.W] - YYYY-MM-DD` header.
-2. Leave an empty `## [Unreleased]` behind.
-3. One bullet per user-visible change, grouped under `### Added` / `### Changed` /
-   `### Fixed` / `### Security` / `### Removed`. One commit ↔ one bullet is
-   not required — collapse or split as reads cleanly — but every substantive
-   commit since the previous tag must be represented, and every bullet must
-   map to a real commit (release-engineer §6).
+1. Add a `## [X.Y.Z.W] - YYYY-MM-DD` section.
+2. Promote any `## [Unreleased]` bullets into it, grouped under
+   `### Added` / `### Changed` / `### Fixed` / `### Security` / `### Removed`.
+3. Leave an empty `## [Unreleased]` behind.
+4. Every substantive commit since the previous tag must be represented, and
+   every bullet must map to a real commit. Collapse or split as reads cleanly.
 
-Examples of the convention live at CHANGELOG lines 10–80. The security section
-(e.g. `### Security` under 1.0.0.1 / 1.0.0.3) cross-references the F-series
-IDs from the audit reports.
+`scripts/extract-changelog.ps1` slices the `[X.Y.Z.W]` section out and feeds
+it to the GitHub Release body — so the format has to parse.
 
-## Tag-triggered CI release (1.0.0.9+)
-
-As of 1.0.0.9 the authoritative way to cut a release is to push a
-`v<version>` tag — [`../../.github/workflows/release.yml`](../../.github/workflows/release.yml)
-does the rest (build, test, sign with the repo cert, publish a GitHub
-Release with the MSIX and public `.cer` attached).
+### 4. Commit + push to main
 
 ```powershell
-# On a PR merged to main that bumps the four version strings:
-git checkout main
-git pull
-git tag v1.0.0.10
-git push origin v1.0.0.10
+git add -A
+git commit -m "release: X.Y.Z.W (short summary)"
+git push origin main
 ```
 
-Preconditions (one-time, per-repo):
+Conventional-commits-ish shorthand for non-release commits: `fix:`, `feat:`,
+`docs:`, `test:`, `refactor:`, `chore:`. Co-authored-by trailers for
+agent-assisted commits.
 
-- `scripts/signing/noteshard-signing.cer` is committed.
-- Repo secrets `SIGNING_PFX_BASE64` and `SIGNING_PFX_PASSWORD` are set.
-- Run [`../../scripts/bootstrap-signing-cert.ps1`](../../scripts/bootstrap-signing-cert.ps1)
-  once to produce both.
+### 5. Tag + push the tag
 
-The workflow hard-fails if the tag (e.g. `v1.0.0.10`) does not match the
-four committed version strings — that's `scripts/verify-versions.ps1`
-doing its job.
+```powershell
+git tag -a vX.Y.Z.W -m "noteshard X.Y.Z.W"
+git push origin vX.Y.Z.W
+```
 
-The manual steps below remain accurate for local dev-cert cuts (e.g. you
-want to test an MSIX before pushing a tag), but you don't need to run
-them to ship a release.
+### 6. CI takes over
 
-## Build the MSIX
+[`../../.github/workflows/release.yml`](../../.github/workflows/release.yml)
+fires on `v*.*.*.*` tag push and runs, in order:
+
+1. `verify-versions.ps1` — tag must match all four version strings.
+2. `dotnet restore` / `build -c Release` / `test -c Release` on the full slnx.
+3. `dotnet publish` the widget csproj → MSIX (x64, `AppxBundle=Never`,
+   `SideloadOnly`).
+4. **Check `SIGNING_PFX_BASE64` secret.** If present, run
+   [`../../scripts/sign-msix.ps1`](../../scripts/sign-msix.ps1) using the
+   stable repo cert. If missing, emit a warning and ship **unsigned** — the
+   asset filename carries a `-unsigned` suffix so it's obvious.
+5. Stage assets: `ObsidianQuickNoteWidget_X.Y.Z.W_x64[-unsigned].msix` and
+   (when signed) `noteshard-signing.cer` alongside, so users can import the
+   public half into Trusted People and sideload.
+6. Extract the matching CHANGELOG section via `extract-changelog.ps1`.
+7. `softprops/action-gh-release@v2` publishes the GitHub Release with the
+   MSIX + cert attached.
+
+### 7. Verify
+
+Check [https://github.com/SchwartzKamel/noteshard/releases](https://github.com/SchwartzKamel/noteshard/releases)
+— the new release should show up within ~3–5 minutes of the tag push, with
+the signed MSIX and `.cer` attached.
+
+If something blows up, check the Actions tab. Common failure:
+`verify-versions.ps1` finding drift — one of the four files didn't get
+bumped. Fix, push, re-tag (`git tag -d vX.Y.Z.W && git push origin :vX.Y.Z.W`
+then start over at step 5).
+
+## Signing: who holds what
+
+- **Public half** — `scripts/signing/noteshard-signing.cer` is committed.
+  Users import it into **Trusted People (LocalMachine)** once to trust
+  sideloaded MSIXes.
+- **Private half** — base64-encoded PFX lives in the `SIGNING_PFX_BASE64`
+  GitHub Actions secret; its password in `SIGNING_PFX_PASSWORD`. The PFX is
+  never in the working tree.
+- **Bootstrap** — [`../../scripts/bootstrap-signing-cert.ps1`](../../scripts/bootstrap-signing-cert.ps1)
+  is the one-time maintainer script that generates the self-signed cert, drops
+  the public `.cer` in `scripts/signing/`, and prints the base64 + password
+  ready to paste into `gh secret set`. See
+  [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md#first-time-ci-signing-setup-maintainer-only-optional)
+  for the exact invocation.
+- **Secrets missing?** Release still ships — just unsigned (`-unsigned`
+  filename suffix). Users have to enable Developer Mode and
+  `Add-AppxPackage -AllowUnsigned` (or trust the cert once for signed
+  builds). Flipping the secrets on is a maintainer decision, not a blocker.
+
+---
+
+## Local dev-cert sideload (optional pre-flight)
+
+Everything below is for **testing an MSIX locally** before pushing a tag —
+or running without the CI signing path at all. It is NOT the canonical
+release flow.
+
+### Build the MSIX
 
 ```powershell
 dotnet publish src/ObsidianQuickNoteWidget/ObsidianQuickNoteWidget.csproj `
@@ -88,9 +164,7 @@ so the password stays out of MSBuild's log.
 
 `make pack` wraps the same command.
 
-## Sign the MSIX
-
-For a **dev-cert sideload cut** (the only kind of cut that ships today):
+### Sign the MSIX (dev cert)
 
 ```powershell
 .\tools\Sign-DevMsix.ps1 <path-to-msixbundle>
@@ -115,7 +189,7 @@ SSL.com code-signing cert). It **refuses** to run when `SIGNING_CERT`
 resolves to any `dev-cert\` path — this is the F-01 defence-in-depth in the
 [`../../Makefile`](../../Makefile).
 
-## Install test
+### Install test
 
 ```powershell
 Add-AppxPackage -Path <path-to-msixbundle> -ForceApplicationShutdown
@@ -129,7 +203,7 @@ Get-AppxPackage *ObsidianQuickNoteWidget* | Remove-AppxPackage
 Add-AppxPackage <path>
 ```
 
-## Kick Widget Host
+### Kick Widget Host
 
 ```powershell
 Get-Process Widgets,WidgetService -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -138,7 +212,7 @@ Get-Process Widgets,WidgetService -ErrorAction SilentlyContinue | Stop-Process -
 In stubborn cases: also `WebExperienceHost.exe`, `dasHost.exe`, any lingering
 `ObsidianQuickNoteWidget.exe`.
 
-## Smoke test
+### Smoke test
 
 1. Tail `%LocalAppData%\Packages\<pfn>\LocalCache\Local\ObsidianQuickNoteWidget\log.txt`.
 2. ⊞+W → *+ Add widgets* → pin Obsidian Quick Note (small), Recent Notes, Plugin Runner.
@@ -149,45 +223,10 @@ In stubborn cases: also `WebExperienceHost.exe`, `dasHost.exe`, any lingering
 5. For `Recent Notes`: click an entry; confirm it opens in Obsidian (and
    launches it if it was closed — 1.0.0.7).
 
-## Commit convention
-
-Release commit: `release: X.Y.Z.W (short summary)`. Example at
-`cbce283`: `release: 1.0.0.7 (URI launcher)`. Per-change commits preceding
-the release commit follow the conventional-commits-ish shorthand already in
-the log:
-
-- `fix: …` — bug fix
-- `feat: …` — new functionality
-- `docs: …` — documentation only
-- `test: …` — test-only changes
-- `refactor: …` — structure changes, no behavior delta
-- `chore: …` — build/config/tooling
-
-Every commit carries a `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
-trailer when produced by an agent pipeline.
-
-## Open blockers for public publish
-
-Tracked on the public-release backlog.
-Status at HEAD:
-
-1. **No production code-signing cert.** Manifest still
-   `Publisher="CN=ObsidianQuickNoteWidgetDev"` and
-   `PublisherDisplayName="ObsidianQuickNoteWidget (dev)"`. The sideload
-   dev-cert path is **not** acceptable for winget/Store — any signed-artifact
-   tooling downstream (see #3) is downstream of this.
-2. **No `.github/workflows/release.yml`.** `.github/workflows/` only contains
-   `build.yml` (CI on every push). No tag-triggered publish, no
-   `make pack-signed`, no `gh release create`, no winget SHA substitution.
-3. **Winget `InstallerSha256` / `SignatureSha256` fields zero-filled.** Four
-   `0000…0000` placeholders in [`../../winget/ObsidianQuickNoteWidget.installer.yaml`](../../winget/ObsidianQuickNoteWidget.installer.yaml)
-   — downstream of #1; the real hashes require a signed release artifact.
-
-Closing #1 unblocks #3; authoring release.yml (#2) lets #3 close itself in CI
-per tag push.
-
 ## See also
 
+- [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) — cowboy-mode contribution
+  style + signing-secret bootstrap.
 - [`development.md`](./development.md) — dev-cert setup + local install loop.
 - [`security.md`](./security.md) — F-01 password-rotation scheme, F-15
   signtool `/p` residual.

@@ -64,7 +64,7 @@ Widget definition IDs (`ObsidianQuickNote`, `ObsidianRecentNotes`, `PluginRunner
 
 ## Testing
 
-- All tests live in `tests/ObsidianQuickNoteWidget.Core.Tests/` and cover `Core` only. 377 tests at HEAD.
+- All tests live in `tests/ObsidianQuickNoteWidget.Core.Tests/` and cover `Core` only. 403 tests at HEAD.
 - `Core` exposes internals to tests via `<InternalsVisibleTo Include="ObsidianQuickNoteWidget.Core.Tests" />` in `Core.csproj`. The Windows widget assembly uses the same for any logic extracted to internal helpers.
 - `TreatWarningsAsErrors=true` is global (`Directory.Build.props`). A stray `// TODO` comment or unused using fails the build.
 

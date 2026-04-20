@@ -8,7 +8,7 @@ Canonical source of truth: [`../../SECURITY.md`](../../SECURITY.md) and the
 [`CHANGELOG.md`](../../CHANGELOG.md) "Security" sections per release.
 This page summarizes the threat model and findings history.
 
-## F-series status at HEAD (1.0.0.7)
+## F-series status at HEAD (1.0.0.10)
 
 ### Closed
 

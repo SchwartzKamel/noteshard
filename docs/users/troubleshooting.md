@@ -8,6 +8,22 @@ Each section below is a symptom → fix. If yours isn't listed, check the [log](
 
 ---
 
+## MSIX fails to install: signature not trusted
+
+When running `Add-AppxPackage` on the `.msix` you downloaded, Windows refuses to install it and shows an error like:
+
+> The root certificate of the signature in the app package or bundle must be trusted.
+
+The package is signed, but the signing certificate isn't from a public authority, so you need to tell Windows to trust it once. Download `noteshard-signing.cer` from the [latest release](https://github.com/SchwartzKamel/noteshard/releases/latest) (same page as the `.msix`), then open PowerShell **as Administrator** in the folder where you saved it and run:
+
+```powershell
+Import-Certificate -FilePath .\noteshard-signing.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+```
+
+Now retry the `Add-AppxPackage` step. You only need to import the certificate once per machine.
+
+---
+
 ## Widget doesn't appear after install
 
 The Widget Board caches its manifest and sometimes misses a new package.
@@ -35,25 +51,25 @@ Then restart the Widgets processes (see above) and try pinning again.
 
 ## Open vault button does nothing
 
-The **Open vault** button in the Recent Notes widget requires the URI-scheme launcher that shipped in **1.0.0.7**. Check your installed version:
+The **Open vault** button in the Recent Notes widget needs a reasonably current build. Check your installed version:
 
 ```powershell
 Get-AppxPackage ObsidianQuickNoteWidget | Select-Object Name, Version
 ```
 
-If `Version` is older than `1.0.0.7`, reinstall with the newer MSIX.
+If it's older than the [latest release](https://github.com/SchwartzKamel/noteshard/releases/latest), update by downloading and installing the newest `.msix` (see [Getting started → Install](./getting-started.md#install)).
 
 ---
 
 ## Recent Notes shows ghost files
 
-If clicking a row shows "file not found" or the list contains notes you've already deleted, you need the ghost-filter fix that shipped in **1.0.0.6** — it intersects Obsidian's recents list with the live file list before displaying. Upgrade:
+If clicking a row shows "file not found" or the list contains notes you've already deleted, you need a build with the ghost-filter fix — it intersects Obsidian's recents list with the live file list before displaying. Check your version:
 
 ```powershell
 Get-AppxPackage ObsidianQuickNoteWidget | Select-Object Name, Version
 ```
 
-If older than `1.0.0.6`, install a newer MSIX.
+If you're not on the [latest release](https://github.com/SchwartzKamel/noteshard/releases/latest), update to the newest `.msix` (see [Getting started → Install](./getting-started.md#install)).
 
 ---
 
